@@ -1,0 +1,261 @@
+-- Code to investigate how number of lines in a policy affects LR
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Makes joined table which show difference between 1 row policies and more than one row policies
+
+--select * from Governing_ZIP_CCD_11;
+--select  sum(premium)  from Governing_ZIP_CCD_11;
+
+drop table if exists  TestDelete13_1line0;
+select 
+ccd
+, sum(premium) as Prem
+, cast(sum(premium)/363809329  AS DECIMAL(12,8))  as '%prem'
+,sum(loss) as Loss
+,sum(loscpd50k) as Loscpd50k
+,sum(loss)/sum(premium) as LR
+, (0.31*sum(premium)) - sum(loss) as An$val
+, avg(cast(CntLinePol as float)) as AvgLines
+,sum(cntccd) as ccdcount
+, sum(CntLinePol) as Lines
+, count(distinct policy_number) as CntPol
+, sum (case when (loss>0) then 1 else 0 end) as CntLoss  -- *** check this**** cntClm????
+, sum (case when (loss>100000) then 1 else 0 end) as 'CntLoss>100k'
+into TestDelete13_1line0
+from Governing_ZIP_CCD_11
+where  Cntlinepol >1
+group by ccd--, onelinepol
+;
+
+--select ccd from Governing_ZIP_CCD_11 group by ccd--, onelinepol
+--select * from TestDelete13_1line0;
+-------------------------------------------------------------
+
+
+drop table if exists  TestDelete13_1line1;
+select 
+ccd
+, sum(premium) as Prem
+, cast(sum(premium)/363809329  AS DECIMAL(12,8))  as '%prem'
+,sum(loss) as Loss
+,sum(loscpd50k) as Loscpd50k
+,sum(loss)/sum(premium) as LR
+, (0.31*sum(premium)) - sum(loss) as An$val
+, avg(cast(CntLinePol as float)) as AvgLines
+,sum(cntccd) as ccdcount
+, sum(CntLinePol) as Lines
+, count(distinct policy_number) as CntPol
+, sum (case when (loss>0) then 1 else 0 end) as CntLoss  -- *** check this**** cntClm????
+, sum (case when (loss>100000) then 1 else 0 end) as 'CntLoss>100k'
+into TestDelete13_1line1
+from Governing_ZIP_CCD_11
+where  Cntlinepol = 1
+group by ccd--, onelinepol
+;
+
+
+--select * from TestDelete13_1line1;
+--select * from Governing_ZIP_CCD_11;
+
+----------------------------------------------------------------------------
+-- join TestDelete13_1line1 & TestDelete13_1line0 & makes  Policy1RowCountTable
+
+drop table if exists Policy1RowCountTable;
+select 
+	
+	round(case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end ,2) as LR_diff
+	, round(T.LR,2) as LR_simple
+	, round(D.LR,2) as LR_complex
+	, T.ccd as ccd
+	, round(T.prem/(T.Prem + D.prem),2) as ratioSmltoAll
+	, T.Prem + D.prem  as SumPrem
+	, round(T.An$val,0) as An$val1
+	, round(D.An$val,0) as An$val
+	, T.CntPol as CntPol1
+	, D.CntPol as CntPolO
+	, T.Prem as Prem1
+	, T.Loss as Loss1
+	, T.LosCpd50k as LosCpd50k1
+	, D.Prem as Prem0
+	, D.Loss as Loss0
+	, D.LosCpd50k as LosCpd50k0
+	into Policy1RowCountTable
+from TestDelete13_1line1 as T
+left join TestDelete13_1line0 as D on T.ccd = D.ccd
+--case when T.Prem + D.prem > 1000000 and case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR  > .2 end
+	--T.ccd =  'Contractors - executive supervisors or executive superintendents'
+
+--order by  (case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end ) desc; -- T.Prem + D.prem desc
+
+--select * from TestDelete13_1line0;
+--select * from TestDelete13_1line1;
+select * from Policy1RowCountTable where sumprem > 2500000 order by lr_diff desc;
+
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+
+-- Investigate one CCD
+
+select 
+	
+	round(case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end ,2) as LRdiff
+	, round(T.LR,2) as LRsmall
+	, round(D.LR,2) as LRbigger
+	, T.ccd as ccd
+	, round(T.prem/(T.Prem + D.prem),2) as ratioSmltoAll
+	, T.Prem + D.prem  as SumPrem
+	, round(T.An$val,0) as An$val1
+	, round(D.An$val,0) as An$val
+	, T.Prem as Prem1, T.Loss as Loss1
+	, T.LosCpd50k as LosCpd50k1
+	, D.Prem as Prem0, D.Loss as Loss0, D.LosCpd50k as LosCpd50k0
+from TestDelete12_1line1 as T
+left join TestDelete12_1line0 as D on T.ccd = D.ccd
+where T.ccd =  'Contractors - executive supervisors or executive superintendents'
+order by T.Prem + D.prem desc
+
+
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- Makes joined table which show difference between 1 and 2 row policies and more than 3+ row policies
+
+
+
+
+------------------------------------------------------------------------
+--******************make table for less than 3 rows**********************
+
+--select * from Governing_ZIP_CCD_11;
+--select  sum(premium)  from Governing_ZIP_CCD_11;
+
+drop table if exists   TestDelete13_2line0;
+select 
+ccd
+, sum(premium) as Prem
+, cast(sum(premium)/363809329  AS DECIMAL(10,10))  as '%prem'
+,sum(loss) as Loss
+,sum(loscpd50k) as Loscpd50k
+,sum(loss)/sum(premium) as LR
+, (0.31*sum(premium)) - sum(loss) as An$val
+, avg(cast(CntLinePol AS DECIMAL(12,2))) as AvgLines
+,sum(cntccd) as ccdcount
+, sum(CntLinePol) as Lines
+, count(distinct policy_number) as CntPol
+, sum (case when (loss>0) then 1 else 0 end) as CntLoss  -- *** check this**** cntClm????
+, sum (case when (loss>100000) then 1 else 0 end) as 'CntLoss>100k'
+into TestDelete13_2line0
+from Governing_ZIP_CCD_11
+where  Cntlinepol <3
+group by ccd;--, onelinepol ;
+
+select * from  TestDelete13_2line0 order by prem desc;
+--select * from  Governing_ZIP_CCD_11;
+-------------------------------------------------------------
+--make table for 3+ rows
+
+
+--select  sum(premium)  from Governing_ZIP_CCD_11;
+
+drop table if exists   TestDelete13_2line1;
+select 
+ccd
+, sum(premium) as Prem
+, cast(sum(premium)/363809329  AS DECIMAL(10,10))  as '%prem'
+,sum(loss) as Loss
+,sum(loscpd50k) as Loscpd50k
+,sum(loss)/sum(premium) as LR
+, (0.31*sum(premium)) - sum(loss) as An$val
+, avg(cast(CntLinePol as float)) as AvgLines
+,sum(cntccd) as ccdcount
+, sum(CntLinePol) as Lines
+, count(distinct policy_number) as CntPol
+, sum (case when (loss>0) then 1 else 0 end) as CntLoss  -- *** check this**** cntClm????
+, sum (case when (loss>100000) then 1 else 0 end) as 'CntLoss>100k'
+into TestDelete13_2line1
+from Governing_ZIP_CCD_11
+where  Cntlinepol >2
+group by ccd;--, onelinepol ;
+
+select * from  TestDelete13_2line1  order by prem desc;
+--select * from  Governing_ZIP_CCD_11;
+-------------------------------------------------------------
+----------------------------------------------------------------------------
+-- join TestDelete13_1line1 & TestDelete13_1line0 & makes  Policy2RowCountTable
+
+drop table if exists Policy2RowCountTable;
+select 
+	round(case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end ,2) as LR_diff
+	, round(T.LR,2) as LR_simple
+	, round(D.LR,2) as LR_complex
+	, T.ccd as ccd
+	, round(T.prem/(T.Prem + D.prem),2) as ratioSmltoAll
+	, T.Prem + D.prem  as SumPrem
+	, round(T.An$val,0) as An$val1
+	, round(D.An$val,0) as An$val
+	, T.Prem as Prem1
+	, T.Loss as Loss1
+	, T.LosCpd50k as LosCpd50k1
+	, D.Prem as Prem0
+	, D.Loss as Loss0
+	, D.LosCpd50k as LosCpd50k0
+into Policy2RowCountTable
+from TestDelete13_2line1 as T
+left join TestDelete13_2line0 as D on T.ccd = D.ccd
+--where T.Prem + D.prem > 1000000 -- and case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end > .2 
+	--T.ccd =  'Contractors - executive supervisors or executive superintendents'
+order by  (case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end ) desc; -- T.Prem + D.prem desc
+
+select * from Policy1RowCountTable order by ccd; -- 847 rows
+select * from TestDelete13_1line1 --847
+select * from TestDelete13_1line0 --849 rows
+select * from Policy2RowCountTable order by ccd; -- 752 rows
+select * from TestDelete13_2line1 --752
+select * from TestDelete13_2line0 --892 rows
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+
+-- Check difference between PolicyRowCountTable & PolicyRowCountTableB
+
+select A.ccd, A.LR_diff as LRdiff1, A.ratioSmltoAll as ratioSmltoAll1,  B.LR_diff as LRdiff2, B.ratioSmltoAll as ratioSmltoAll2--, a.sumprem,b.sumprem
+from Policy1RowCountTable A
+left join Policy2RowCountTable  B on b.ccd = A.ccd
+where a.sumprem >1000000
+order by A.LR_diff desc
+
+
+
+
+
+
+
+
+----------------------------------------------------------------------------
+----------------------------------------------------------------------------
+-- Investigate one CCD
+
+select 
+	
+	round(case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end ,2) as LRdiff
+	, round(T.LR,2) as LRsmall
+	, round(D.LR,2) as LRbigger
+	, T.ccd as ccd
+	, round(D.prem/(T.Prem + D.prem),2) as ratio0toAll
+	, T.Prem + D.prem  as SumPrem
+	, round(T.An$val,0) as An$val1
+	, round(D.An$val,0) as An$val
+	, T.Prem as Prem1, T.Loss as Loss1
+	, T.LosCpd50k as LosCpd50k1
+	, D.Prem as Prem0, D.Loss as Loss0, D.LosCpd50k as LosCpd50k0
+from TestDelete12_1line1 as T
+left join TestDelete12_1line0 as D on T.ccd = D.ccd
+where T.ccd =  'Contractors - executive supervisors or executive superintendents'
+order by T.Prem + D.prem desc
