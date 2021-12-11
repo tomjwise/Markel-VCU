@@ -1,0 +1,117 @@
+/*
+Creates a list of Policies with a Zero Written Premium Problem called policies_zwp.
+
+Then Left joins TOM_Policy_Agg  and TOM_Claims_Agg on CCD & Policy Number &
+left joins TOM_Policy_Agg  and policies_zwp_gr on CCD & Policy Number 
+into a table called joinedPolsClaims.
+
+Then from joinedPolsClaims calculates LossRatios and Annual$value for Tableau etc called CCD_Pt2.
+*/
+
+drop table if exists CCD_Pt2;
+
+drop table if exists policies_zwp;
+
+	select distinct policy_number
+	into policies_zwp 
+	from  MOL_Binding_GL_Policy_Data
+	where written_premium = 0
+;
+
+drop table if exists joinedPolsClaims
+;
+
+select	p.ccd, 
+	p.maxCCD_pol_num, 
+	case when policies_zwp.policy_number is not null then 'yes' else 'no' end as has_zwp,
+	c_agg.policy_number as ClmPolNum,  
+	premium, 
+	case when losses is null then 0 else losses end as losses, 
+	case when lssCppd180 is null then 0 else lssCppd180 end as lssCppd180, 
+	case when lssCppd500 is null then 0 else lssCppd500 end as lssCppd500, 
+	case when (losses is null) or premium = 0 then 0 else (losses / premium) end as LossRatio,
+	p.CCDcnt,
+	sumWPgov,
+	WPmax,
+	WPmax01
+into joinedPolsClaims
+from TOM_Policies_Agg_withGOVccd as p 
+	left join TOM_Claims_Agg  as c_agg on p.ccd = c_agg.ccd and p.maxCCD_pol_num = c_agg.policy_number
+	left join policies_zwp on policies_zwp.policy_number = p.maxCCD_pol_num
+;
+
+--select * from  joinedPolsClaims
+
+
+drop table if exists CCD_Pt2;
+select	
+	ccd 
+	,B.CCD_group
+	,sum(A.premium) as SumWritPrem1 
+	,sum(A.losses) as SumWritLoss1
+	,sum(A.lssCppd180) as lssCppd180
+	,sum(A.lssCppd500) as lssCppd500
+	,sum(case when has_zwp = 'no' then A.premium else 0 end) as SumWritPrem_xzp 
+	,sum(case when has_zwp = 'no' then A.losses else 0 end) as SumWritLoss_xzp 
+	--,sum(case when WPmax01 = 1 then sumWPgov else 0 end) as SumWritPrem_GOVccd 
+	--,sum(case when WPmax01 = 1 then losses else 0 end) as SumWritLoss_sumWPgov,
+	,count(distinct A.maxCCD_pol_num) as CntPol1 
+	,count(distinct A.ClmPolNum) as CntLoss1
+	,round(sum(A.losses)/sum(A.premium),3) as LR
+	,round((0.31- sum(A.losses)/sum(A.premium)),3)as LRdiff
+	,round(((0.31- sum(A.losses)/sum(A.premium))*sum(A.premium))*0.25,0) as Ann$val
+	,case when sum(case when A.has_zwp = 'no' then A.premium else 0 end) != 0 then
+	sum(case when A.has_zwp = 'no' then A.losses else 0 end) / sum(case when A.has_zwp = 'no' then A.premium else 0 end) else null end as LR_xzp	
+	,(0.305- (case when sum(case when A.has_zwp = 'no' then A.premium else 0 end) != 0 then
+	sum(case when A.has_zwp = 'no' then A.losses else 0 end) / sum(case when A.has_zwp = 'no' then A.premium else 0 end) else null end))as LR_xzpDiff
+	,(((0.305- (case when sum(case when A.has_zwp = 'no' then A.premium else 0 end) != 0 then 
+	sum(case when A.has_zwp = 'no' then A.losses else 0 end) / sum(case when A.has_zwp = 'no' then A.premium else 0 end) else null end )) *
+	sum(case when A.has_zwp = 'no' then A.premium else 0 end))/4) as Ann$val_xzp
+into CCD_Pt2
+from joinedPolsClaims as A  
+left join CCDwithGroupsOnly as B on B.ccd1 = A.ccd
+group by ccd, CCD_group
+having sum(A.premium) > 0 
+;
+--select * from  joinedPolsClaims
+--select * from 
+--select * from CCD_Pt2 order by Ann$val asc;
+;
+
+
+--------------------------------------------------------------------------------------------------------------------------------------
+-- create table CCD_Pt2_grouped to investigate groups
+drop table if exists CCD_Pt2_grouped;
+
+select 
+			CCD_group
+			,sum(sumWritPrem1) as sumWritPrem1
+			,sum(sumWritLoss1) as sumWritLoss1
+			,sum(lssCppd180) as lssCppd180
+			,sum(lssCppd500) as lssCppd500
+			,sum(sumWritPrem_xzp) as sumWritPrem_xzp
+			,sum(sumWritLoss_xzp) as sumWritLoss_xzp
+			,sum(CntPol1) as CntPol1
+			,sum(CntLoss1) as CntLoss1
+			,sum(sumWritLoss1)/sum(sumWritPrem1) as LR
+			,round((0.31 - sum(sumWritLoss1)/sum(sumWritPrem1)),3) as LRdiff
+			,round(((0.31- sum(sumWritLoss1)/sum(sumWritPrem1))*sum(sumWritPrem1))*0.25,0) as Ann$val
+			,sum(sumWritLoss_xzp)/sum(sumWritPrem_xzp) as LR_xzp
+			,round((0.305 - sum(sumWritLoss_xzp)/sum(sumWritPrem_xzp)),3) as LRdiff_xzp
+			,round(((0.305- sum(sumWritLoss_xzp)/sum(sumWritPrem_xzp))*sum(sumWritPrem_xzp))*0.25,0) as Ann$val_xzp
+		
+into CCD_Pt2_grouped
+from CCD_Pt2
+group by CCD_group 
+order by LR desc
+;
+
+select * from CCD_Pt2_grouped
+where ccd_group ='Contractors'
+order by LR desc
+;
+
+
+
+
+
