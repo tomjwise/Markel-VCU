@@ -1,0 +1,26 @@
+
+
+drop table if exists MOL_ClaimswithCCD;
+
+select 
+				MOL_Binding_GL_Claim_DataX.* 
+				, CCDwithGroupsOnly.CCD_group
+into MOL_ClaimswithCCD
+from MOL_Binding_GL_Claim_DataX
+left join CCDwithGroupsOnly on CCDwithGroupsOnly.ccd1 = MOL_Binding_GL_Claim_DataX.class_code_description
+;
+
+------------------------------------------------------------------------------------------------
+
+drop table if exists MOL_PolicywithCCD;
+
+select 
+				MOL_Binding_GL_Policy_DataX.* 
+				, CCDwithGroupsOnly.CCD_group
+into MOL_PolicywithCCD
+from MOL_Binding_GL_Policy_DataX
+left join CCDwithGroupsOnly on CCDwithGroupsOnly.ccd1 = MOL_Binding_GL_Policy_DataX.class_code_description
+;
+
+select * from MOL_ClaimswithCCD; -- 6163 rows
+select * from MOL_PolicywithCCD; -- 353024 rows
