@@ -1,0 +1,245 @@
+-- Reproduces the ZIP table in Tableau
+-- uses table ZIP_Joined_Tables_2021_6_19 from ZIP Joined Tables 2021_6_19
+
+-- Creates ZIP Area/HiLo Income segments & ZIP Annual$value
+-- Table with all Policies (including the Zero Written premium Policies)
+
+--select count(*) from Tom_ZIP_Joined_Tables_2021_6_19
+---------------------------------------------------------------------
+--Make ALL policies Table
+
+drop table if exists Tableau_Table_All_2021_10_25;
+
+with A as
+
+(select  *,
+case when  Median_family_income <= 45000 and Land_area >=0 and Land_area <= 3 then '1.Very Urban 0-3 SqMile : LowInc'
+when  Median_family_income > 45000 and Land_area >=0.25 and Land_area <= 3 then '2.Very Urban 0.25-3 SqMile :High Inc'
+when  Median_family_income <= 65000 and Land_area
+>=3 and Land_area <= 7 then '3.Urban 3-7 SqMile : Low Inc'
+when  Median_family_income > 65000 and Land_area
+>=3 and Land_area <= 7 then '4.Urban 3-7 SqMile : High Inc'
+when  Land_area >=7 and Land_area <= 34  and Median_family_income  <= 115000  then '5.Suburban 7-34 SqMile : Low Inc.'
+when  Land_area >=7 and Land_area <= 34  and Median_family_income  > 115000  then '6.Suburban 7-34 SqMile : High Inc.'
+when  Land_area >=34 and Land_area <= 100  and Median_family_income  <= 90000  then '7.Semi-suburban 34-100 SqMile : Low Inc.'
+when  Land_area >=34 and Land_area <= 100  and Median_family_income  > 90000  then '8.Semi-suburban 34-100 SqMile :High Inc.'
+when  Land_area > 100 and Median_family_income <= 45000  then '9.Rural 100+ SqMile : Low Inc.'
+when  Land_area > 100 and Median_family_income > 45000  then '99.Rural 100+ SqMile :High Inc.' 
+else '999. Other'
+end as AreaGroups
+from Tom_ZIP_Joined_Tables_2021_6_19
+)
+-- A = ALL
+select AreaGroups,
+cast((sum(loss)/sum(premium))*100 as int)  as'A_LR' , 
+cast((((sum(loss)/sum(premium))*100) - 31) as int) as 'A_Diff_Mean_LR',  
+cast((sum (premium) / 363797672)*100 as int)  as 'A_PC_Tot', 
+cast((sum (premium)  * ((sum(loss)/sum(premium)) - 0.31) /4) as int)  as 'A_A$v'
+, sum(premium) As Premium
+, sum(loss) as Loss
+, count (distinct policy_number) as CntPol
+into Tableau_Table_All_2021_10_25
+from A
+group by AreaGroups
+order by AreaGroups ;
+
+--select * from Tom_ZIP_Joined_Tables_2021_6_19
+--select * from Tableau_Table_All_2021_10_25;
+/*
+
+format(cast((sum (premium)  * ((sum(loss)/sum(premium)) - 0.31) /4)as float),2)  as 'Annual$value'
+
+
+select round(sum (case when Annual$Value > 0 then Annual$Value when Annual$Value <=0 then  
+Annual$Value * -1 else null end), 0) as Total_Annual$value_All
+from CC;
+*/
+
+
+
+
+---------------------------------------------------------------------------------------------------------------
+--Make ZWP table      Table excluding the Zero Written premium Policies
+
+drop table if exists  Tableau_Table_ZWP_2021_10_25;
+
+with A as
+
+(select  *,
+case when  Median_family_income <= 45000 and Land_area >=0 and Land_area <= 3 then '1.Very Urban 0-3 SqMile : LowInc'
+when  Median_family_income > 45000 and Land_area >=0.25 and Land_area <= 3 then '2.Very Urban 0.25-3 SqMile :High Inc'
+when  Median_family_income <= 65000 and Land_area
+>=3 and Land_area <= 7 then '3.Urban 3-7 SqMile : Low Inc'
+when  Median_family_income > 65000 and Land_area
+>=3 and Land_area <= 7 then '4.Urban 3-7 SqMile : High Inc'
+when  Land_area >=7 and Land_area <= 34  and Median_family_income  <= 115000  then '5.Suburban 7-34 SqMile : Low Inc.'
+when  Land_area >=7 and Land_area <= 34  and Median_family_income  > 115000  then '6.Suburban 7-34 SqMile : High Inc.'
+when  Land_area >=34 and Land_area <= 100  and Median_family_income  <= 90000  then '7.Semi-suburban 34-100 SqMile : Low Inc.'
+when  Land_area >=34 and Land_area <= 100  and Median_family_income  > 90000  then '8.Semi-suburban 34-100 SqMile :High Inc.'
+when  Land_area > 100 and Median_family_income <= 45000  then '9.Rural 100+ SqMile : Low Inc.'
+when  Land_area > 100 and Median_family_income > 45000  then '99.Rural 100+ SqMile :High Inc.' 
+else '999. Other'
+end as AreaGroups
+from  Tom_ZIP_Joined_Tables_2021_6_19)
+
+select 
+AreaGroups as ZMPAreaGroups,
+cast((sum(loss)/sum(premium))*100 as int)  as Z_LR , 
+cast((((sum(loss)/sum(premium))*100) - 30.5)as int) as Z_Diff_Mean_LR,  
+cast((sum (premium) / 257590025)*100 as int) as Z_PC_Tot, 
+--cast((sum (premium)  * (sum(loss)/sum(premium))) - (0.305) /4 as int) as  ZWP_Annual$value     old one 
+--cast((sum (premium)  * ((sum(loss)/sum(premium)) - 0.31) /4) as int)  as 'ALL_Annual$value'      from ALL table
+cast((sum (premium)  * ((sum(loss)/sum(premium)) - 0.305) /4) as int)  as Z_A$v   
+, sum(premium) As ZPremium
+, sum(loss) as ZLoss
+, count (distinct policy_number) as ZCntPol
+into  Tableau_Table_ZWP_2021_10_25
+from A
+--where cast('Has Zero wp'as INT)  != 1            --*******************************************************
+where Has_Zero_wp  != 1
+group by AreaGroups
+order by AreaGroups ;
+
+--select * from  Tom_ZIP_Joined_Tables_2021_6_19;
+
+--select * from  Tableau_Table_All_2021_10_25;
+
+/*,
+
+select 
+sum(loss),
+sum(premium),
+sum(loss)/sum(premium) as OverallLossratio
+from   Tom_ZIP_Joined_Tables_2021_6_19  
+where Has_Zero_wp != 1      --sum ZWP premium 257674772.25000   --sum ALL premium 363882523.25000
+*/
+
+
+
+
+
+--------------------------------------Make Governing Table------------------------------------------------------
+
+--select * from Governing_ZIP_CCD_8
+--select * from TestDeleteGoverning
+drop table if exists  TestDeleteGoverning;
+select
+cast(Area as Float) as Area
+,cast(Income as Float) as Income
+,Premium
+,Loss
+,policy_number
+,cntpol
+,case when Premium <3000 then 1 else 0 end as Oto3k
+into TestDeleteGoverning
+from Governing_ZIP_CCD_8
+
+-----------------------------------------
+
+drop table if exists  TestDeleteA;
+select  *
+,
+case 
+when  income <= 45000 and area >=0 and area <= 3 then '1.Very Urban 0-3 SqMile : LowInc'
+when   income > 45000 and area >=0.25 and area <= 3 then '2.Very Urban 0.25-3 SqMile :High Inc'
+when  income <= 65000 and area>=3 and area <= 7 then '3.Urban 3-7 SqMile : Low Inc'
+when  Income > 65000 and area>=3 and area <= 7 then '4.Urban 3-7 SqMile : High Inc'
+when  area >=7 and area <= 34  and income  <= 115000  then '5.Suburban 7-34 SqMile : Low Inc.'
+when  area >=7 and area <= 34  and income  > 115000  then '6.Suburban 7-34 SqMile : High Inc.'
+when  area >=34 and area <= 100  and income  <= 90000  then '7.Semi-suburban 34-100 SqMile : Low Inc.'
+when  area >=34 and area <= 100  and income  > 90000  then '8.Semi-suburban 34-100 SqMile :High Inc.'
+when  area > 100 and income <= 45000  then '9.Rural 100+ SqMile : Low Inc.'
+when  area > 100 and income > 45000  then '99.Rural 100+ SqMile :High Inc.' 
+else '999. Other' end as AreaGroups
+into TestDeleteA
+from  TestDeleteGoverning
+
+--select * from TestDeleteA
+;
+drop table if exists Tableau_Table_GOV_2021_10_25;
+select AreaGroups,
+cast((sum(loss)/sum(premium))*100 as int)  as'G_LR' , 
+cast((((sum(loss)/sum(premium))*100) - 31) as int) as 'G_Diff_Mean_LR',  
+cast((sum (premium) / 363797672)*100 as int)  as 'G_PC_Tot', 
+cast((sum (premium)  * ((sum(loss)/sum(premium)) - 0.31) /4) as int)  as 'G_A$v'
+, sum(premium) As GPremium
+, sum(loss) as GLoss
+, sum(cntPol) as GCntPol
+, sum( Oto3k) as GOto3k
+into Tableau_Table_GOV_2021_10_25
+from TestDeleteA
+group by AreaGroups
+order by AreaGroups ;
+
+--select * from Tableau_Table_GOV_2021_10_25
+
+
+
+---------------------------------------join ALL table with ZWP table-------------------------------------------------
+
+drop table if exists  Tableau_Table_ALL_ZWP_GOV_2021_10_25;
+
+select A.*
+,Z.Z_LR, Z.Z_Diff_Mean_LR,Z.Z_PC_Tot, Z.Z_A$v, ZPremium as ZPrem, ZLoss, ZCntPol as ZntP
+,G.G_LR, G.G_Diff_Mean_LR,G.G_PC_Tot, G.G_A$v, GPremium as GPrem, GLoss, GCntPol as GCntP
+into Tableau_Table_ALL_ZWP_GOV_2021_10_25
+from Tableau_Table_All_2021_10_25 as  A
+full outer join Tableau_Table_ZWP_2021_10_25 as Z on A.AreaGroups = Z.ZMPAreaGroups
+full outer join Tableau_Table_GOV_2021_10_25 as G on A.AreaGroups = G.AreaGroups
+ORDER BY A.AreaGroups;
+
+--select * from  Tableau_Table_ALL_ZWP_GOV_2021_10_25
+drop table if exists  Tableau_Table_Ordered_2021_10_25
+
+select 
+case when  AreaGroups = '1.Very Urban 0-3 SqMile : LowInc' then '1'
+ when AreaGroups = '2.Very Urban 0.25-3 SqMile :High Inc' then '2'
+ when AreaGroups = '3.Urban 3-7 SqMile : Low Inc' then '3'
+ when AreaGroups = '4.Urban 3-7 SqMile : High Inc' then '4'
+ when AreaGroups = '5.Suburban 7-34 SqMile : Low Inc.' then '5'
+ when  AreaGroups ='6.Suburban 7-34 SqMile : High Inc.'then '6'
+ when  AreaGroups ='7.Semi-suburban 34-100 SqMile : Low Inc.' then '7'
+ when AreaGroups ='8.Semi-suburban 34-100 SqMile :High Inc.' then '8'
+ when AreaGroups ='9.Rural 100+ SqMile : Low Inc.' then '9'
+ when AreaGroups = '99.Rural 100+ SqMile :High Inc.' then '10'
+ when  AreaGroups = '999. Other' then '11'
+ else 999
+ end as Ord
+ ,*
+ into Tableau_Table_Ordered_2021_10_25
+ from Tableau_Table_ALL_ZWP_GOV_2021_10_25
+ order by Ord
+ ;
+ select * from  Tableau_Table_Ordered_2021_10_25
+ order by Ord
+
+
+
+
+
+-----------------------------------------get An$Val sum from these tables---------------------------------------
+
+
+select 
+round(sum (case when ALL_Annual$Value > 0 then ALL_Annual$Value when ALL_Annual$Value <=0 then ALL_Annual$Value * -1 else null end), 0) as ALL_Annual$value_sum
+, round(sum (case when ZWP_Annual$Value > 0 then ZWP_Annual$Value when ZWP_Annual$Value <=0 then ZWP_Annual$Value * -1 else null end), 0) as ZWP_Annual$Value_sum
+,round(sum (case when ALL_Annual$Value > 0 then ALL_Annual$Value when ALL_Annual$Value <=0 then ALL_Annual$Value * -1 else null end)/(363882523.25000/4), 3) as ALL_Ann$value_proportion_of_TotPremiums
+, round(sum (case when ZWP_Annual$Value > 0 then ZWP_Annual$Value when ZWP_Annual$Value <=0 then ZWP_Annual$Value * -1 else null end)/(257674772.25000/4), 3) as ZWP_Ann$value_proportion_of_TotPremiums
+from Tableau_Table_ALLandZWP_2021_10_25;
+
+--select * from Tableau_Table_ALLandZWP_2021_10_25
+--select sum(premium) from Tom_ZIP_Joined_Tables_2021_6_10
+--select * from Tom_ZIP_Joined_Tables_2021_6_10
+
+
+
+
+
+
+
+
+
+
+
+
+
