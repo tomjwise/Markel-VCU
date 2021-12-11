@@ -1,0 +1,214 @@
+
+-- Uses MOL_ClaimswithCCD & MOL_PolicywithCCD to make a joined table, adds ZWP and ZIP data to make the Tableau table.
+
+-- can do 3 year claim cuttoff lines 26 & 29
+
+
+--------------------------------------------------------------------------------	
+--1  Makes table from MOL_ClaimswithCCD for joining to policies
+drop table if exists   ClaimTableforJoin;
+
+select	
+	LIOC_Agreement_Version_Id,
+	[COVC_Agreement_Version_Id],
+	[CAC_Agreement_Version_Id],
+	ccd_group,
+	left(risk_zip, 5) as risk_zip,
+	policy_number, 
+	count(distinct claim_number) as Count_Claim,
+	sum(loss_paid + expense_paid + loss_reserve + expense_reserve) as loss, 
+	case when sum(loss_paid + expense_paid + loss_reserve + expense_reserve)> 800000 then 800000 
+			else sum(loss_paid + expense_paid + loss_reserve + expense_reserve) end as lssCppd800, 
+	case when sum(loss_paid + expense_paid + loss_reserve + expense_reserve)> 500000 then 500000 
+			else sum(loss_paid + expense_paid + loss_reserve + expense_reserve) end as lssCppd500, 
+	case when sum(loss_paid + expense_paid + loss_reserve + expense_reserve)> 180000 then 180000 
+			else sum(loss_paid + expense_paid + loss_reserve + expense_reserve) end as lssCppd180, 
+	case when sum(loss_paid + expense_paid + loss_reserve + expense_reserve)> 80000 then 80000 
+			else sum(loss_paid + expense_paid + loss_reserve + expense_reserve) end as lssCppd80
+	--case when DATEADD(DD,1100,Policy_Effective_Date) > Claim_Feature_Open_Date then 0 else 1 end as ThreeYrCutOff,
+into ClaimTableforJoin
+from MOL_ClaimswithCCD
+--where DATEADD(DD,1100,Policy_Effective_Date) > Claim_Feature_Open_Date --***cuts off all claims after 3 years from start date***
+group by 
+	ccd_group,
+	left(risk_zip, 5),
+	policy_number,  
+	LIOC_Agreement_Version_Id,
+	[COVC_Agreement_Version_Id],
+	[CAC_Agreement_Version_Id]  
+	;
+
+--select * from ClaimTableforJoin	;
+--------------------------------------------------------------------------------	
+--2  Makes table from MOL_PolicywithCCD for joining to claims
+drop table if exists   PolicyTableforJoin;
+
+select 
+	LIOC_Agreement_Version_Id,
+	[COVC_Agreement_Version_Id],
+	[CAC_Agreement_Version_Id],
+	sum(written_premium) as premium,
+	policy_number,
+	ccd_group,
+	insured_object_zip,
+	Policy_Effective_Date, 
+	Policy_Expiration_Date
+
+into PolicyTableforJoin
+from  MOL_PolicywithCCD 
+group by 
+	LIOC_Agreement_Version_Id,
+	[COVC_Agreement_Version_Id],
+	[CAC_Agreement_Version_Id],
+	insured_object_zip,
+	policy_number,
+	ccd_group,
+	Policy_Effective_Date, 
+	Policy_Expiration_Date
+	;
+	
+
+--select * from PolicyTableforJoin	;
+--------------------------------------------------------------------------------	
+-- 3 JoinsPolicyTableforJoin and ClaimsTableforJoin ...
+
+drop table if exists  JoinedPolicyandClaims;
+select 
+	P.Policy_number,
+	C.Policy_number as C_Policy_number, 
+	P.CCD_group,
+	P.Premium,
+	loss,
+	lssCppd80,
+	lssCppd180,
+	lssCppd500,
+	lssCppd800,
+	C.Count_Claim,
+	P.LIOC_Agreement_Version_Id,
+	P.COVC_Agreement_Version_Id,
+	P.CAC_Agreement_Version_Id,
+	P.insured_object_zip,
+	P.Policy_Effective_Date, 
+	P.Policy_Expiration_Date,
+	C.risk_zip
+into JoinedPolicyandClaims
+from PolicyTableforJoin  as P
+	left join ClaimTableforJoin as C on-- C.policy_number = P.policy_number
+	C.LIOC_Agreement_Version_Id = P.LIOC_Agreement_Version_Id 
+	and C.COVC_Agreement_Version_Id = P.COVC_Agreement_Version_Id
+	and C.CAC_Agreement_Version_Id = P.CAC_Agreement_Version_Id
+
+	
+--select * from JoinedPolicyandClaims	;
+
+--------------------------------------------------------------------------------	
+-- 4 makes a Table of of policy numbers which have at least one row with a zero premium
+drop table if exists   policies_zwp;
+
+select 
+	distinct policy_number as policy_numberZWP,
+	1 as ZWPpolicy
+into policies_zwp
+from  MOL_Binding_GL_Policy_Data
+where written_premium = 0;
+
+--select * from policies_zwp;
+	
+	
+--------------------------------------------------------------------------------	
+-- 5 Joins policies_zwp to JoinedPolicyandClaims ...
+
+drop table if exists  JoinedPolicyandClaimsandZWP
+select 
+	J.*,
+	P.ZWPpolicy
+	into JoinedPolicyandClaimsandZWP
+from JoinedPolicyandClaims as J
+left join policies_zwp as P on P.policy_numberZWP = J.Policy_number;
+
+	
+--select * from JoinedPolicyandClaimsandZWP;
+--------------------------------------------------------------------------------	
+-- 6 Joins ZIP_codes_2018_mcdc_missouri_edu  to JoinedPolicyandClaims ...
+
+drop table if exists JoinedPolicyandClaimsandZWPandZIP;
+
+select 
+	J.*
+	, cast(Z.Median_family_income_2018 as float) as Median_family_income
+	, Z.*
+into JoinedPolicyandClaimsandZWPandZIP
+from JoinedPolicyandClaimsandZWP as J
+left join ZIP_codes_2018_mcdc_missouri_edu as Z on Z.ZIP_code  = J.insured_object_zip;
+
+--select  * from   JoinedPolicyandClaimsandZWPandZIP;
+--------------------------------------------------------------------------------	
+
+
+
+
+
+
+
+
+
+
+--------------------------------------------------------------------------------	
+--7  changes names & data types to make Tableau happy ...
+
+drop table if exists Tom_ZIP_Joined_Tables_2021_6_19 ;
+
+select 
+	J.policy_number as 'Policy_number',
+	J.C_policy_number as 'C Policy_number',
+	J.ccd_group,
+	cast( case when ZWPpolicy = 1 then 1 else 0 end as int) as 'Has Zero Wp',
+	case when ZWPpolicy = 1 then 1 else 0 end  as Has_Zero_Wp,     --********************************--
+	--case when ZWPpolicy = 1 then 1 else 0 end as 'Has Zero Wp',
+	J.Premium as premium,
+	J.Loss as loss,
+	J.LssCppd80 as LssCppd80,
+	J.LssCppd180 as LssCppd180,
+	J.LssCppd500 as LssCppd500,
+	J.LssCppd800 as LssCppd800,
+	case when J.Premium =0 then null else  cast (J.loss as float)/ J.Premium end as LR,
+	(case when J.Premium =0 then null else  cast (J.loss as float)/ J.Premium end) -0.31 as 'LR diff from 0.31 ',
+	--case when ((case when J.Premium =0 then null else  cast (J.loss as float)/ J.Premium end) -0.31) >0 then 1 else 0 end    ,
+	case when J.Premium =0 then null else  (J.lssCppd80)/  (J.Premium) end as LR80,
+	case when J.Premium =0 then null else  (J.lssCppd180)/  (J.Premium) end as LR180,
+	case when J.Premium =0 then null else  (J.lssCppd500)/  (J.Premium) end as LR500,
+	case when J.Premium =0 then null else  (J.lssCppd800)/  (J.Premium) end as LR800,
+	J.Count_Claim,
+	case when J.Median_family_income_2018 = NULL then 0 else Median_family_income end  as Median_family_income,
+	cast(J.Median_family_income_2018 as float)  as 'Median family income',
+	CAST(J.Land_area AS float) as Land_area,
+	CAST(J.Land_area AS float) as Land_area2,
+	CAST(J.Land_area AS float) as 'Land Area',
+	J.Population_2018 as Pop2018, 
+	round(case when J.land_area = 0 then null else J.population_2018/J.Land_area end, 0) as PopDens,
+	J.Policy_Effective_Date as 'Policy Effective Date',
+	J.Policy_Expiration_Date as 'Policy Expiration Date',
+	J.LIOC_Agreement_Version_Id,
+	J.COVC_Agreement_Version_Id,
+	J.CAC_Agreement_Version_Id,
+	ZIP_code
+into Tom_ZIP_Joined_Tables_2021_6_19 
+from JoinedPolicyandClaimsandZWPandZIP as J;
+
+select * from Tom_ZIP_Joined_Tables_2021_6_19 ;
+--select * from JoinedPolicyandClaimsandZWPandZIP ;
+
+
+/*
+select  
+sum (Premium) as SumP
+,sum (cast (loss as float)) as SumL
+,sum (lssCppd180)  as L180
+,sum (lssCppd500)  as L500
+,sum (lssCppd800) as L800
+,sum (cast (loss as float))/ sum (Premium) as LR
+,sum (lssCppd180)/ sum (Premium) as LR180
+,sum (lssCppd500)/ sum (Premium) as LR500
+,sum (lssCppd800)/ sum (Premium) as LR800
+from   Tom_ZIP_Joined_Tables_2021_6_19 ;
+*/
