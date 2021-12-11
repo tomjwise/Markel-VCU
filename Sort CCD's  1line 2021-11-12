@@ -1,0 +1,182 @@
+--select * from Governing_ZIP_CCD_11;
+--select  sum(premium)  from Governing_ZIP_CCD_11;
+
+drop table if exists  TestDelete12_1line0;
+select 
+ccd
+, sum(premium) as Prem
+, cast(sum(premium)/363809329  AS DECIMAL(12,2))  as '%prem'
+,sum(loss) as Loss
+--, case when cntclm = 0 then 0 else sum(loss)/sum(CntClm) end  as LossMean
+,sum(loscpd50k) as Loscpd50k
+,sum(loss)/sum(premium) as LR
+, (0.31*sum(premium)) - sum(loss) as An$val
+--, avg(cast(CntLinePol as float)) as AvgLines
+--, case when avg(cast(CntLinePol as float)) >1 then 1 else 0 end as 'AvgL>1'
+, avg(cast(CntLinePol as float)) as AvgLines
+,sum(cntccd) as ccdcount
+, sum(CntLinePol) as Lines
+, count(distinct policy_number) as CntPol
+, sum (case when (loss>0) then 1 else 0 end) as CntLoss  -- *** check this**** cntClm????
+, sum (case when (loss>100000) then 1 else 0 end) as 'CntLoss>100k'
+, case 
+		--when LR > .33 and sum (case when (loss>0) then 1 else 0 end) <= CntCntLoss>100k and CntLoss*80 > CntPol then 'Beware due to at least one bad loss'
+		when sum(loss)/sum(premium) > 0.33 and-- count(loss>100000) then 1) and
+			sum (case when (loss>0) then 1 else 0 end) 
+			<= (sum (case when (loss>100000) then 1 else 0 end))
+				and sum (case when (loss>0) then 1 else 0 end) *150 > count(premium) then 'Beware due to at least one bad loss'
+				
+		--when LR > .33 and sum (case when (loss>0) then 1 else 0 end) <= (CntLoss>100k+1) and CntLoss*80 > CntPol then 'Watch'
+		when sum(loss)/sum(premium) > 0.33 and 
+			sum (case when (loss>0) then 1 else 0 end) 
+			<= (sum (case when (loss>100000) then 1 else 0 end)+1) 
+				and sum (case when (loss>0) then 1 else 0 end) *150 < count(premium) then 'Watch'
+			
+		--when sum (An$val) <-1000000 and LR > 0.31 and LossMean < 1000 then 'Increase Premiums & Deductables'
+		when (0.31*sum(premium)) - sum(loss) <-1000000 and sum(loss)/sum(premium) > 0.31 and  avg(loss) < 1000 then 'Increase Premiums a lot & Deductables'
+		
+		--when sum (An$val) <1000000 and LR > 0.31 and LossMean > 1000 then 'Increase Premiums & Exclusions'
+		when (0.31*sum(premium)) - sum(loss) <-1000000 and sum(loss)/sum(premium) > 0.31  and  avg(loss) > 1000 then 'Increase Premiums a lot & Exclusions'
+
+		--when sum (An$val) <1000000 and LR > 0.31 and LossMean > 1000 then 'Increase Premiums & Exclusions'
+		when (0.31*sum(premium)) - sum(loss) <-400000 and sum(loss)/sum(premium) > 0.31  then 'Increase Premiums'
+		
+		
+		--when sum (An$val) >500000 and SumPrem > 2000000 then 'GET MORE!!!'
+		when (0.31*sum(premium)) - sum(loss) >500000 and sum(premium) > 2000000  then '***GET MORE!!!***'
+		
+		--when sum (An$val) >500000 and SumPrem > 2000000 then 'GET MORE!!!'
+		when (0.31*sum(premium)) - sum(loss) >200000 and sum(premium) > 700000  then 'GET MORE!!'
+
+		--when sum (An$val) >500000 and SumPrem > 2000000 then 'GET MORE!!!'
+		when (0.31*sum(premium)) - sum(loss) >70000  then 'GET MORE'
+
+
+
+
+			else NULL end
+		as 'ACTION'
+
+into TestDelete12_1line0
+from Governing_ZIP_CCD_11
+group by ccd, onelinepol
+having  onelinepol = 0;
+
+select * from TestDelete12_1line0;
+-------------------------------------------------------------
+
+
+drop table if exists  TestDelete12_1line1;
+select 
+ccd
+, sum(premium) as Prem
+, cast(sum(premium)/363809329  AS DECIMAL(12,2))  as '%prem'
+,sum(loss) as Loss
+--, case when cntclm = 0 then 0 else sum(loss)/sum(CntClm) end  as LossMean
+,sum(loscpd50k) as Loscpd50k
+,sum(loss)/sum(premium) as LR
+, (0.31*sum(premium)) - sum(loss) as An$val
+--, avg(cast(CntLinePol as float)) as AvgLines
+--, case when avg(cast(CntLinePol as float)) >1 then 1 else 0 end as 'AvgL>1'
+, avg(cast(CntLinePol as float)) as AvgLines
+,sum(cntccd) as ccdcount
+, sum(CntLinePol) as Lines
+, count(distinct policy_number) as CntPol
+, sum (case when (loss>0) then 1 else 0 end) as CntLoss  -- *** check this**** cntClm????
+, sum (case when (loss>100000) then 1 else 0 end) as 'CntLoss>100k'
+, case 
+		--when LR > .33 and sum (case when (loss>0) then 1 else 0 end) <= CntCntLoss>100k and CntLoss*80 > CntPol then 'Beware due to at least one bad loss'
+		when sum(loss)/sum(premium) > 0.33 and-- count(loss>100000) then 1) and
+			sum (case when (loss>0) then 1 else 0 end) 
+			<= (sum (case when (loss>100000) then 1 else 0 end))
+				and sum (case when (loss>0) then 1 else 0 end) *150 > count(premium) then 'Beware due to at least one bad loss'
+				
+		--when LR > .33 and sum (case when (loss>0) then 1 else 0 end) <= (CntLoss>100k+1) and CntLoss*80 > CntPol then 'Watch'
+		when sum(loss)/sum(premium) > 0.33 and 
+			sum (case when (loss>0) then 1 else 0 end) 
+			<= (sum (case when (loss>100000) then 1 else 0 end)+1) 
+				and sum (case when (loss>0) then 1 else 0 end) *150 < count(premium) then 'Watch'
+			
+		--when sum (An$val) <-1000000 and LR > 0.31 and LossMean < 1000 then 'Increase Premiums & Deductables'
+		when (0.31*sum(premium)) - sum(loss) <-1000000 and sum(loss)/sum(premium) > 0.31 and  avg(loss) < 1000 then 'Increase Premiums a lot & Deductables'
+		
+		--when sum (An$val) <1000000 and LR > 0.31 and LossMean > 1000 then 'Increase Premiums & Exclusions'
+		when (0.31*sum(premium)) - sum(loss) <-1000000 and sum(loss)/sum(premium) > 0.31  and  avg(loss) > 1000 then 'Increase Premiums a lot & Exclusions'
+
+		--when sum (An$val) <1000000 and LR > 0.31 and LossMean > 1000 then 'Increase Premiums & Exclusions'
+		when (0.31*sum(premium)) - sum(loss) <-400000 and sum(loss)/sum(premium) > 0.31  then 'Increase Premiums'
+		
+		
+		--when sum (An$val) >500000 and SumPrem > 2000000 then 'GET MORE!!!'
+		when (0.31*sum(premium)) - sum(loss) >500000 and sum(premium) > 2000000  then '***GET MORE!!!***'
+		
+		--when sum (An$val) >500000 and SumPrem > 2000000 then 'GET MORE!!!'
+		when (0.31*sum(premium)) - sum(loss) >200000 and sum(premium) > 700000  then 'GET MORE!!'
+
+		--when sum (An$val) >500000 and SumPrem > 2000000 then 'GET MORE!!!'
+		when (0.31*sum(premium)) - sum(loss) >70000  then 'GET MORE'
+
+
+
+
+			else NULL end
+		as 'ACTION'
+
+into TestDelete12_1line1
+from Governing_ZIP_CCD_11
+group by ccd, onelinepol
+having  onelinepol = 1
+
+
+select * from TestDelete12_1line1
+
+----------------------------------------------------------------------------
+-- join TestDelete12_1line1 & TestDelete12_1line0
+
+drop table if exists PolicyRowCountTableA;
+select 
+	
+	round(case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end ,2) as LRdiff
+	, round(T.LR,2) as LRsmall
+	, round(D.LR,2) as LRbigger
+	, T.ccd as ccd
+	, round(D.prem/(T.Prem + D.prem),2) as ratio0toAll
+	, T.Prem + D.prem  as SumPrem
+	, round(T.An$val,0) as An$val1
+	, round(D.An$val,0) as An$val
+
+	, T.CntPol as CntPol1
+	, D.CntPol as CntPol0
+
+	, T.Prem as Prem1, T.Loss as Loss1
+	, T.LosCpd50k as LosCpd50k1
+	, D.Prem as Prem0, D.Loss as Loss0, D.LosCpd50k as LosCpd50k0
+	into PolicyRowCountTableA
+from TestDelete12_1line1 as T
+left join TestDelete12_1line0 as D on T.ccd = D.ccd
+--where T.Prem + D.prem > 3000000  and case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end > .2 
+	--T.ccd =  'Contractors - executive supervisors or executive superintendents'
+order by  (case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end ) desc; -- T.Prem + D.prem desc
+
+select * from PolicyRowCountTableA;
+
+----------------------------------------------------------------------------
+-- Investigate one CCD
+
+select 
+	
+	round(case when T.LR - D.LR < 0 then (T.LR - D.LR)* -1 else T.LR - D.LR end ,2) as LRdiff
+	, round(T.LR,2) as LRsmall
+	, round(D.LR,2) as LRbigger
+	, T.ccd as ccd
+	, round(D.prem/(T.Prem + D.prem),2) as ratio0toAll
+	, T.Prem + D.prem  as SumPrem
+	, round(T.An$val,0) as An$val1
+	, round(D.An$val,0) as An$val
+	, T.Prem as Prem1, T.Loss as Loss1
+	, T.LosCpd50k as LosCpd50k1
+	, D.Prem as Prem0, D.Loss as Loss0, D.LosCpd50k as LosCpd50k0
+from TestDelete12_1line1 as T
+left join TestDelete12_1line0 as D on T.ccd = D.ccd
+where T.ccd =  'Contractors - executive supervisors or executive superintendents'
+order by T.Prem + D.prem desc
