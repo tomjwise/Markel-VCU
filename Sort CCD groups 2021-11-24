@@ -1,0 +1,199 @@
+-- Makes table with all CCD's sorted into Action segments
+
+
+drop table if exists  TestDelete12group;
+
+
+select 
+case 	
+		-- Loss ratio >0.31 and  Loss Ratio Capped50k >0 <0.2 
+		when sum(loss)/sum(premium) > 0.37 
+		and sum(loscpd50k)/sum(premium) < 0.15
+		then '7. COULD BE OK if not for some high losses'
+
+		--An$val <-1000000 and LRcpd > 0.55 or  An$val <-1000000 and LR > 0.8
+		when ((0.31*sum(premium)) - sum(loss) <-1000000 
+		and sum(loscpd50k)/sum(premium) > 0.55) or
+		((0.31*sum(premium)) - sum(loss) <-1000000 
+		and sum(loss)/sum(premium) > 0.8) or
+		((0.31*sum(premium)) - sum(loss) <-500000 
+		and sum(loss)/sum(premium) > 3)
+		  then '1. Urgent investigation'
+		  
+/*		--An$val <-700000 & LR > 0.31 & LossMean < 1000
+		when (0.31*sum(premium)) - sum(loss) <-700000 
+		and sum(loss)/sum(premium) > 0.31 
+		and sum (case when (loss>100000) then 1 else 0 end)/count(distinct policy_number)>.0001
+		then '2c. Increase Premiums a lot & check too many high Losses'
+*/
+		--An$val < -700000 & LR > 0.31 & Mean Loss  > 2500
+		when (0.31*sum(premium)) - sum(loss) <-700000 
+		and sum(loss)/sum(premium) > 0.31  
+		and  avg(loss) > 2500 
+		then '2a. Increase Premiums a lot & check Exclusions'
+
+		--An$val < -700000 & LR > 0.31 & Mean Loss  < 2500
+		when (0.31*sum(premium)) - sum(loss) <-700000 
+		and sum(loss)/sum(premium) > 0.31 
+		and  avg(loss) < 2500 
+		then '2b. Increase Premiums a lot & check Deductables'
+		
+		--An$val <400000 & LR > 0.31 
+		when (0.31*sum(premium)) - sum(loss) <-400000 
+		and sum(loss)/sum(premium) > 0.31  
+		and  avg(loss) >= 800 
+		then '3a. Increase Premiums'
+
+		--An$val  <400000 & LR > 0.31 and LossMean < 800
+		when (0.31*sum(premium)) - sum(loss) <-400000 
+		and sum(loss)/sum(premium) > 0.31 
+		and  avg(loss) < 800 
+		then '3b. Increase Premiums  & check Deductables'
+
+			--when LR > .33 and sum (case when (loss>0) then 1 else 0 end) <= CntCntLoss>100k and CntLoss*80 > CntPol then 'Beware due to at least one bad loss'
+/*		when sum(loss)/sum(premium) > 0.33 
+			and sum (case when (loss>100000) then 1 else 0 end) >1 
+			and sum (case when (loss>0) then 1 else 0 end) <= (sum (case when (loss>100000) then 1 else 0 end)+5)
+			and sum (case when (loss>0) then 1 else 0 end) *150 > count(premium)  
+			then '4. Beware due to at least one bad loss'
+*/
+		-- An$val < -60000  & Losses over $100k >1  & Losses over $100k > 1 in 500 policies
+		when ((0.31*sum(premium))) - sum(loss) < -60000
+		and (sum (case when (loss>100000) then 1 else 0 end)) >0 
+		and (sum (case when (loss>100000) then 1 else 0 end)) *500 > count(premium)
+		then '4. Beware due to at least one bad loss'   
+				
+		-- Loss Ratio > $40000 and An$val >0.34  
+		when sum(loss)/sum(premium) > 0.34 
+		and ((0.31*sum(premium))) - sum(loss) < -40000
+		then '5. Worth checking'
+
+		-- Loss Ratio > 0.34 and Loss Ratio cpd $50k > 0.16 
+		when sum(loss)/sum(premium) > 0.34 
+		or sum(loscpd50k)/sum(premium) > 0.16
+		then '6. Increase Premiums - low priority'
+		
+		--An$val > $200k
+		when (0.31*sum(premium)) - sum(loss) >300000  
+		then '10. BEST'
+
+		--An$val >100000 
+		when (0.31*sum(premium)) - sum(loss) >100000 
+		then '9. BETTER'
+
+		--An$val >70000 
+		when (0.31*sum(premium)) - sum(loss) >70000  
+		then '8. GOOD'			
+		
+		-- Loss ratio >0.31 and  Loss Ratio Capped50k >0 <0.2 
+		when sum(loss)/sum(premium) > 0.28  
+		and sum(loss)/sum(premium) <= 0.34 
+		and sum(loscpd50k)/sum(premium) < 0.17
+		and sum(loscpd50k)/sum(premium) >0.11
+		then '11. Close to Mean Loss ratio & Cpd Loss Ratio'
+
+			else '***not interesting****'  end
+		as 'ACTION'
+
+		,ccd_group
+, floor(sum(premium)) as Premium4yr
+, cast(sum(premium)/363809329  AS DECIMAL(12,6))  as '%prem'
+,floor(sum(loss)) as Loss
+--, case when cntclm = 0 then 0 else sum(loss)/sum(CntClm) end  as LossMean
+,floor(sum(loscpd50k)) as Loscpd50k
+,floor( avg(loss)) as LossAvg
+,round(sum(loss)/sum(premium),3) as LR
+,round(sum(loscpd50k)/sum(premium),3) as LRcpd
+, floor((0.31*sum(premium))) - sum(loss) as An$val
+--, avg(cast(CntLinePol as float)) as AvgLines
+--, case when avg(cast(CntLinePol as float)) >1 then 1 else 0 end as 'AvgL>1'
+,round( avg(cast(CntLinePol as float)),2) as AvgLines
+,sum(cntccd) as ccdcount
+, sum(CntLinePol) as Lines
+, count(distinct policy_number) as CntPol
+, sum (case when (loss>0) then 1 else 0 end) as CntLoss  -- *** check this**** cntClm????
+, sum (case when (loss>100000) then 1 else 0 end) as 'CntLoss>100k'
+
+into TestDelete12group
+from Governing_ZIP_CCD_11
+group by ccd_group
+;
+
+select * from TestDelete12group order by 'An$val' asc
+
+------------------------------------------------------------------------------------
+
+/*
+'1. Urgent investigation'
+'2a. Increase Premiums a lot & check Exclusions'
+'2b. Increase Premiums a lot & check Deductables'
+'3a. Increase Premiums'
+'3b. Increase Premiums  & check Deductables'
+'4. Beware due to at least one bad loss'   
+'5. Worth checking'
+'6. Increase Premiums - low priority'
+'7. COULD BE OK if not for some high losses'
+'8. GOOD'
+'9. BETTER'		
+'10. BEST'	
+'11. Close to Mean Loss ratio & Cpd Loss Ratio'
+*/
+
+
+--select * from TestDelete12 where action =	'10. BEST'		 order by AN$val asc
+
+
+/*
+-------------------------------------------------------------
+-- ADD CCD Groups
+
+drop table if exists  TestDelete12 ;
+select C.CCD_group
+,  T.*
+into TestDelete12 
+from  TestDelete11 T
+left join CCDwithgroupsonly C on C.ccd1 = T.ccd
+;
+select * from  TestDelete12 
+where ccd_group = 'Building/vacant/land'
+order by  'Prem' desc
+------------------------------------------------------------------------------
+-- make column of CCD_group sum % of premium
+/*
+
+select 
+cast (sum('%prem') AS DECIMAL(12,2))  , CCD_group
+from  TestDelete12
+group by CCD_group
+
+
+
+
+
+
+select * from  Governing_ZIP_CCD_8 
+order by ccd_group ;
+
+*/
+------------------------------------------------------
+
+*/
+
+
+/*
+
+	select
+		-- Loss ratio >0.31 and  Loss Ratio Capped50k >0 <0.2 
+		case when sum(loss)/sum(premium) > 0.37 
+		and sum(loscpd50k)/sum(premium) < 0.2
+		then '?. COULD BE GOOD if not for some high losses'  end
+		as 'ACTION'
+		,ccd
+--where ccd = 'Contractors - subcontracted work - in connection with construction, reconstruction, erection or repair - not buildings - Not Otherwise Classified' and onelinepol <3
+from Governing_ZIP_CCD_11
+group by ccd--, onelinepol
+order by case when sum(loss)/sum(premium) > 0.37 
+		and sum(loscpd50k)/sum(premium) < 0.2
+		then '?. COULD BE GOOD if not for some high losses'  end desc
+;
+*/
