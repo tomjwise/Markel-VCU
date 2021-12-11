@@ -1,0 +1,298 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2513
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica-Bold;\f1\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;\red192\green80\blue77;\red0\green77\blue187;\red0\green128\blue0;
+\red165\green165\blue165;\red0\green0\blue255;\red63\green105\blue30;}
+{\*\expandedcolortbl;;\csgenericrgb\c75294\c31373\c30196;\csgenericrgb\c0\c30196\c73333;\csgenericrgb\c0\c50196\c0;
+\csgenericrgb\c64706\c64706\c64706;\csgenericrgb\c0\c0\c100000;\csgenericrgb\c24706\c41176\c11765;}
+\margl1440\margr1440\vieww10800\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\partightenfactor0
+
+\f0\b\fs24 \cf0 \
+\
+I started using CTE's but found it easier to review the code if it was simplified to make a fresh table at every step. One disadvantage seems to be that the code throws errors if too many steps are run at once. So if a big chunk of the SQL throws errors then try it one bit at a time.\
+\
+\ul \
+ZIP & CCD sql\
+\ulnone \
+There are two folders\
+\
+'1' code 
+\f1\b0 groups ZIPs and CCDs seperately and goes to Tableau tables unjoined. This reduces overcounting of the Premiums to less that 1%. This is probably the best way for general investigation in Tableau etc.\
+
+\f0\b \
+'2' code 
+\f1\b0 groups ZIPS and CCDs right away (on LIOC,CAC and COVC) which allows more columns to be kept in but increases overcounting of Premiums from 1.5% to 2.5%. This table should be useful for diving into specific claims etc.
+\f0\b \ul \
+\
+\
+\ulnone ------------------------------------------------------------------------------------------------------------------\ul \
+\cf2 \ulnone Folder : 1 Code\cf0 ------------------------------------------------------------------------\
+------------------------------------------------------------------------------------------------------------------\
+\
+\ul Tables \
+
+\f1\b0 \ulnone These tables are in the SQL database.\
+	ZIP info
+\f0\b \ul \
+
+\f1\b0 \ulnone 		
+\f0\b ZIP_codes_2018_mcdc_missouri_edu \
+
+\f1\b0 			from mcdc.missouri.edu/applications/zipcodes/ZIP_codes_2018.xls\
+	Insurance info
+\f0\b \ul \
+\ulnone 		MOL_Binding_GL_Claim_Data      \
+		MOL_Binding_GL_Policy_Data      \
+\
+
+\f1\b0 Tableau takes data from two tables - one for ZIP data and one for CCD data. These tables are made from the code below. \
+\
+
+\f0\b ----------------------------------------------------------------------------------------------------\
+\
+
+\f1\b0 This code is needed to run both the ZIP and CCD code.\
+
+\f0\b \cf3 \ul \ulc3 \
+1A Groups the CCDs 2021-10-26.sql\
+\cf0 \ulnone \
+
+\f1\b0 Adds a CCD group column in MOL_Binding_GL_Policy_Data & makes table MOL_Binding_GL_Policy_DataX 
+\f0\b \
+
+\f1\b0 Cleans CCD column in MOL_Binding_GL_Claims_Data & Makes table MOL_Binding_GL_Claims_DataX \
+\
+Makes CCD groups in the table:   
+\f0\b CCDwithGroupsOnly
+\f1\b0   - \
+
+\f0\b CCDwithGroupsOnly
+\f1\b0   -   is used  to add CCD Groups to MOL_Binding_GL_Claims_DataX  and  MOL_Binding_GL_Policy_DataX 
+\f0\b \ul \
+\ulnone \
+-------------------------------- ZIP -------------------------------------------------\
+\
+makes a joined table of policies and losses called Tom_ZIP_Joined_Tables_2021_6_19\
+\
+\
+Run in this order:\
+\cf3 \ul \ulc3 \
+\ulnone 1. \ul 1B ZIP add CCDgroups to Claims and Policy 2021 10 28.sql
+\f1\b0 \cf0 \ulnone 	\
+Adds CCD groups to 
+\f0\b MOL_Binding_GL_Claim_Data   
+\f1\b0 &
+\f0\b  MOL_Binding_GL_Policy_Data 	\
+
+\f1\b0 making  
+\f0\b MOL_ClaimswithCCD 
+\f1\b0 &
+\f0\b  MOL_PolicywithCCD\
+\ul \
+\cf3 \ulnone 2. \ul 1C ZIP Makes ZWP and joins ZIPS 2021-10-28.sql\cf0 \ulc0 \
+
+\f1\b0 \cf4 \ulnone 	\cf0 * Pulls from  
+\f0\b MOL_ClaimswithCCD & MOL_PolicywithCCD 
+\f1\b0 \cf4 \
+		& 
+\f0\b \cf0 MOL_Binding_GL_Policy_Data
+\f1\b0    \
+\pard\pardeftab720\li720\partightenfactor0
+\cf0 * Can remove trailing losses if needed (line 26 /29)
+\f0\b \
+\pard\pardeftab720\fi720\partightenfactor0
+
+\f1\b0 \cf0 * Makes a list of Zero Written Premium policies called 
+\f0\b policies_zwp
+\f1\b0 .\
+* Joins those tables with the ZIP data called 
+\f0\b ZIP_codes_2018_mcdc_missouri_edu \
+
+\f1\b0 * creates  
+\f0\b Tom_ZIP_Joined_Tables_2021_6_19
+\f1\b0 \
+\pard\pardeftab720\partightenfactor0
+
+\f0\b \cf0 \
+----------------------------------------------------------------------------------------------------\
+\cf3 3. \ul 1D ZIP Tableau table 2021-10-28.sql\cf0 \ulc0 \
+\pard\pardeftab720\fi720\partightenfactor0
+
+\f1\b0 \cf0 \ulnone From 
+\f0\b Tom_ZIP_Joined_Tables_2021_6_19 
+\f1\b0 reproduces the ZIP table from Tableau, with and without ZWP policies.
+\f0\b \
+\pard\pardeftab720\partightenfactor0
+\cf0 \
+----------------------------Class Codes-------------------------------------------------\
+\
+\
+Run in this order:\
+\pard\pardeftab720\partightenfactor0
+
+\f1\b0 \cf5 \
+\pard\pardeftab720\partightenfactor0
+
+\f0\b \cf3 1. \ul 1E CCD Pt1 Policy_and_Claims 2021-10-28.sql\cf0 \ulc0 \
+\pard\pardeftab720\li720\partightenfactor0
+
+\f1\b0 \cf0 \ulnone * From 
+\f0\b MOL_Binding_GL_Claim_Data 
+\f1\b0 cleans the 68 claims that have more than one CCD. It changes the multiple CCD to the one that seems most appropriate for the details of the claim.\
+\pard\pardeftab720\fi720\partightenfactor0
+\cf0 * Aggregates on Policy Number and CCD & Creates:
+\f0\b \ul  \ulnone TOM_Claims_Agg\
+
+\f1\b0 * From 
+\f0\b MOL_Binding_GL_Policy_Data
+\f1\b0  Aggregates on Policy Number and CCD & Creates: \sub  	
+\f0\b \nosupersub TOM_Policies_Agg\
+\pard\pardeftab720\partightenfactor0
+
+\f1\b0 \cf0 \
+
+\f0\b \cf3 2. \ul 1F CCD Pt2 2021-10-28.sql\cf0 \ulc0 \
+\pard\pardeftab720\fi720\partightenfactor0
+
+\f1\b0 \cf0 \ulnone * Creates a list of Policies with a Zero Written Premium Problem called 
+\f0\b policies_zwp
+\f1\b0 \
+\pard\pardeftab720\li720\partightenfactor0
+\cf0 * Then Left joins 
+\f0\b TOM_Policies_Agg 
+\f1\b0  and 
+\f0\b TOM_Claims_Agg
+\f1\b0  on CCD & Policy Number & left joins 
+\f0\b TOM_Policy_Agg 
+\f1\b0  and 
+\f0\b policies_zwp_gr
+\f1\b0  on CCD & Policy Number into a table called 
+\f0\b joinedPolsClaims.\
+\pard\pardeftab720\fi720\partightenfactor0
+
+\f1\b0 \cf0 * Then from 
+\f0\b joinedPolsClaims 
+\f1\b0 calculates LossRatios and Annual$value for Tableau etc called 	
+\f0\b CCD_Pt2\
+
+\f1\b0 *lastly it makes a table 
+\f0\b CCD_Pt2_grouped 
+\f1\b0 which is grouped on CCD_groups\
+
+\f0\b \
+\pard\pardeftab720\partightenfactor0
+\cf0 \
+----------------------------------------------------------------------------------------------------\
+\cf2 Folder : Governing Table - 1 policy, 1 Class Code, 1 ZIP \cf0 \'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\'97\
+----------------------------------------------------------------------------------------------------\
+\
+Makes a table with a single Class Code and a single ZIP for each policy. It uses the Governing Class Code principle (that the Class Code with the highest premium is the Governing Class Code) and applies it to both the Class Code and the ZIP.\
+\
+This table is called Governing_ZIP_CCD_11\
+\
+\cf3 \ul \ulc3 1. 1G prep 2021-10-31.sql\cf0 \ulnone \
+\pard\pardeftab720\li720\partightenfactor0
+
+\f1\b0 \cf0 * From 
+\f0\b MOL_Binding_GL_Claim_Data 
+\f1\b0 cleans the 68 claims that have more than one Class Code. It changes the multiple Class Codes to the one that seems most appropriate for the details of the claim.\
+\
+\pard\pardeftab720\fi720\partightenfactor0
+\cf0 * Aggregates on Policy Number and CCD & Creates 
+\f0\b TOM_Claims_Agg2\
+\pard\pardeftab720\partightenfactor0
+\cf0 \
+\cf3 \ul \ulc3 2. 1G one line zip and CCD 2021-11-01\cf0 \ulnone \
+	* makes a 'One Policy - One ZIP - One Class Code' table called Governing_ZIP_CCD_11\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardeftab720\partightenfactor0
+\cf0 \
+Governing_ZIP_CCD_11 headers:
+\f1\b0 \
+HEADERS: ,policy_number, Premium, Loss, LosCpd50k, LosCpd100k, LosCpd200k, ccd, ccd_group, Area, Income, TypeLoss, CntClm, ZWPpolicy, CntCCD, OneLinePol, CntLinePol\
+\pard\pardeftab720\partightenfactor0
+
+\f0\b \cf0 \
+----------------------------------------------------------------------------------------------------\
+\cf2 Folder: Sorting Class Codes into Action groups\cf0 \'97\'97\'97\'97\'97\
+-------------------- --------------------------------------------------------------------------------\
+\
+Sorts Class Codes into the 12 Good to Bad groups for action\
+\
+\cf3 \ul \ulc3 Sort CCD's  2021-11-23.sql\cf0 \ulnone \
+
+\f1\b0 	* Makes table that sorts and labels the Class Codes
+\f0\b \
+\
+\cf3 \ul \ulc3 Sort CCD groups 2021-11-24.sql\cf0 \ulnone \
+	Does the same for the Class Code Groups\
+\
+----------------------------------------------------------------------------------------------------\
+\cf2 Folder : SimpleComplex - Compare 1-line and 2-line policies\cf0 \'97\'97\
+----------------------------------------------------------------------------------------------------\
+\
+This is used to compare 1 line policies against 2(+) line policies & 1 or 2 line policies against 3(+) line policies\
+\
+\cf3 \ul \ulc3 1lineAnd2linePolicyInvestigation 2021-11-21.sql\
+\cf0 \ulnone \
+----------------------------------------------------------------------------------------------------\
+\pard\tx750\pardeftab720\partightenfactor0
+\cf2 Folder : Optimization of the 10 Area-Income segments\cf0 \'97\'97\'97\'97\'97\
+\pard\pardeftab720\partightenfactor0
+\cf0 ----------------------------------------------------------------------------------------------------\
+\
+\pard\pardeftab720\partightenfactor0
+\cf0 Optimization code for the 10 Area/income segments. Needs to be converted from the jupyter notebook  to python to run on the VM. It runs on some test data but we have not tried it in the VM. It needs the library brooks.py.\
+\
+\cf3 \ul \ulc3 markel.ipynb\
+markel_tree_data.xlsx\
+brooks.py\
+\cf0 \ulc0 \
+\ulnone ------------------------------------------------------------------------------------------------------------------\ul \
+\ulnone ----------------------------------- \cf2 2 Code \cf0 ---------------------------------------------\
+------------------------------------------------------------------------------------------------------------------\
+Does the same as '1' Code but arguably not so well.....\
+The '2' code 
+\f1\b0 groups ZIPS and CCDs right away (on LIOC,CAC and COVC) which allows more columns to be kept in but increases overcounting of Premiums from 1.5% to 2.5%. This table should be useful for diving into specific claims etc.\
+
+\f0\b \
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardeftab720\partightenfactor0
+
+\f1\b0 \cf6 2A cleans MOLclaims 2021_7_28.sql\cf0 \
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardeftab720\partightenfactor0
+\cf0 From 
+\f0\b MOL_Binding_GL_Claim_Data 
+\f1\b0 this cleans the 68 claims that have more than one CCD. \
+It changes the multiple CCDs to the one that seems most appropriate for the details of the claim.\
+Makes table called\cf7  
+\f0\b MOL_Claim_clean2 
+\f1\b0 \cf0 \
+\
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardeftab720\partightenfactor0
+\cf6 2B Adds ccdGroups to MOLpolicy  2021-7-28.sql\cf0 \
+Adds CCD groups to 
+\f0\b MOL_Binding_GL_Policy_Data 
+\f1\b0 to make \cf7 MOL_Policy_with_CCDgroups\cf6 \
+\
+2C adds ZWP and ZIP to MOLPolicy 2021-7-28.sql\cf0 \
+Adds ZWP column, and ZIP data to 
+\f0\b MOL_Policy_with_CCDgroups
+\f1\b0 . Too make \cf7 MOL_Policy_with_CCDgroups_ZWP_ZIP\cf0 \
+\
+\cf6 2D join Claim and Policy 2021-7-28.sql\cf0 \
+joins Policies and Claims and makes 
+\f0\b \cf7 ClaimsAndPolicies
+\f1\b0 \
+\pard\pardeftab720\partightenfactor0
+
+\f0\b \cf0 \
+\
+\
+
+\f1\b0 \
+\
+\pard\pardeftab720\sl276\slmult1\sa200\partightenfactor0
+
+\fs22 \cf0 \
+}
