@@ -1,0 +1,800 @@
+
+ 
+
+--drop table if exists CCD_Pt2;
+---------------------------------------------------------------------
+-- Filters for ZWP policy numbers
+drop table if exists TestDeletePolicies_zwp;
+
+select distinct policy_number
+into TestDeletePolicies_zwp
+from  MOL_Binding_GL_Policy_Data
+where written_premium = 0
+;
+
+--SELECT * FROM MOL_Binding_GL_Policy_Data   --   353024  rows
+--SELECT * FROM TestDeletePolicies_zwp   --   34041  rows
+
+-- number of distinct policies  156478
+
+---------------------------------------------------------------------------------------------
+-- cleans MOL_Binding_GL_Policy_Data ccd column
+
+drop table if exists TestDeletePolicies;
+
+select policy_number,  
+	replace(class_code_description, '''', '')  as ccd, 
+	written_premium as premium
+into TestDeletePolicies
+from MOL_Binding_GL_Policy_Data
+--group by replace(class_code_description, '''', '')
+;
+
+--select * from TestDeletePolicies   -- 353024 ROWS
+--select count(*) from MOL_Binding_GL_Policy_Data   -- 353024 ROWS
+-------------------------------------------------------------------------------------------------
+ --  joins claims to policies, also ZMP marker to policies, makes capped losses
+
+drop table if exists TestDeleteJoinedPolsClaims2;
+
+select	p.ccd, 
+	p.policy_number, 
+	case when policies_zwp.policy_numberZWP is not null then 'yes' else 'no' end as has_zwp,
+	premium, 
+	case when losses is null then 0 else losses end as losses, 
+	case when lssCppd180 is null then 0 else lssCppd180 end as lssCppd180, 
+	case when lssCppd500 is null then 0 else lssCppd500 end as lssCppd500 
+	,c_agg.CntClaim
+	--, case when (losses is null) or premium = 0 then 0 else (losses / premium) end as LossRatio
+	into TestDeleteJoinedPolsClaims2
+from TestDeletePolicies as p 
+	left join TOM_Claims_Agg2 as c_agg on p.ccd = c_agg.ccd and p.policy_number = c_agg.policy_number
+	left join policies_zwp on policies_zwp.policy_numberZWP = p.policy_number
+;
+--select * from  policies_zwp;
+--select * from  TOM_Claims_Agg2  order by cntclaim desc;
+--select sum(losses) from  TOM_Claims_Agg2; -- 112607694.56000  (should be 112607694.56000)
+--select * from  TestDeleteJoinedPolsClaims2; -- 353024 rows
+--select sum(premium) from  TestDeleteJoinedPolsClaims2; -- 363797776.25
+--select sum(losses) from  TestDeleteJoinedPolsClaims2; -- 196246833.16000   ***** TOO MUCH  *****
+;
+----------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------
+-- adds ccd groups to joined table
+
+drop table if exists CCD_Pt2_testdeleteA;
+
+select	
+A.policy_number
+	,A.CntClaim
+	,A.ccd 
+	,B.CCD_group
+	,A.premium as SumWritPrem1 
+	,A.losses as SumWritLoss1
+into CCD_Pt2_testdeleteA
+from  TestDeleteJoinedPolsClaims2 as A  
+left join CCDwithGroupsOnly as B on B.ccd1 = A.ccd
+--group by  ccd, CCD_group , A.policy_number
+--having sum(premium) > 0 
+;
+
+--select * from   CCDwithGroupsOnly ; 
+--select * from    TestDeleteJoinedPolsClaims2 ; 
+--select * from   CCD_Pt2_testdelete ;   --  353024 rows
+--select sum(SumWritPrem1 ) from   CCD_Pt2_testdelete ;   --  363797776.25
+--select sum(SumWritLoss1 ) from   CCD_Pt2_testdelete ;   --  196246833.16000
+
+
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+--Adds ZWP column
+
+--  makes a Table of of policy numbers which have at least one row with a zero premium
+drop table if exists   TestDeletepolicies_zwp;
+
+select 
+	distinct policy_number as policy_numberZWP,
+	1 as ZWPpolicy
+into TestDeletepolicies_zwp
+from  MOL_Binding_GL_Policy_Data
+where written_premium = 0;
+
+--select * from TestDeletepolicies_zwp
+;
+	
+	
+--------------------------------------------------------------------------------	
+--  Joins TestDeletepolicies_zwp to  CCD_Pt2_testdelete ...
+
+drop table if exists  CCD_Pt2_testdelete
+select 
+	J.*,
+	P.ZWPpolicy
+	into CCD_Pt2_testdelete
+from  CCD_Pt2_testdeleteA as J
+left join TestDeletepolicies_zwp as P on P.policy_numberZWP = J.Policy_number;
+
+
+--select * from TestDeletepolicies_zwp
+--select * from CCD_Pt2_testdeleteA
+--select * from JoinedPolicyandClaimsandZWP
+
+
+
+
+
+----------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+--Identifies the Maximum Premium value, and the sum of the premiums, for each policy - maxWPtable2
+
+drop table if exists maxWPtable2;
+
+with 
+SumWP as 
+	(select 
+	policy_number
+	, sum( written_premium) as sumWPgov
+	from MOL_Binding_GL_Policy_Data
+	group by policy_number)
+	,
+CountCCD as 
+	(select 
+	policy_number
+	, count (class_code_description) as CCDcnt
+	from MOL_Binding_GL_Policy_Data
+	group by policy_number)
+	,
+MaxCCD as
+	(select 
+	policy_number
+	, max (written_premium) as WPmax
+	from MOL_Binding_GL_Policy_Data
+	group by policy_number
+	--where class_code_description = max(written_premium)
+	)
+	
+select 
+	maxCCD.policy_number as maxCCD_pol_num
+	, WPmax
+	, sumWP.sumWPgov
+	, CountCCD.CCDcnt
+into maxWPtable2
+from maxCCD
+left join CountCCD on CountCCD.policy_number = maxCCD.policy_number 
+left join SumWP on maxCCD.policy_number = sumWP.policy_number
+;
+--select * from  maxWPtable2  -- 156478 ROWS
+--select sum(sumWPgov) from  maxWPtable2  -- 363797776.25 
+;
+
+-------------------------------------------------------------
+
+drop table if exists CCD_Pt2_testdelete_withGovCCD;
+
+select *
+	, case when SumWritPrem1 = WPmax then 1 else 0 end as WPmax01
+	, CCD_Pt2_testdelete.CntClaim As CntClm
+into CCD_Pt2_testdelete_withGovCCD  
+from maxWPtable2   
+left join  CCD_Pt2_testdelete on maxWPtable2.maxCCD_pol_num  = CCD_Pt2_testdelete.policy_number
+where CCD_Pt2_testdelete.SumWritPrem1 = maxWPtable2.WPmax
+;
+-- select * from  CCD_Pt2_testdelete
+--select * from CCD_Pt2_testdelete_withGovCCD  -- row 159487
+--select sum(sumWPgov) from CCD_Pt2_testdelete_withGovCCD  -- 367568765.25
+--select sum(sumWRITlOSS1) from CCD_Pt2_testdelete_withGovCCD  -- 97030878.42000--  ***should be 112607694.56000 ****
+
+
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+--select * from maxWPtable2 ; --row 156479
+--select * from  CCD_Pt2_testdelete   ; -- row 353024
+--select * from  CCD_Pt2_testdelete_withGovCCD ;   -- row 159487g
+
+----------------------------------------------------------------------------------------------------------
+drop table if exists GoverningCCD_LossPremium_1_to_1;
+
+select 
+ policy_number
+ , ccd
+ , CCD_group
+ , SumWPgov as Premium
+ , SumWritLoss1 as Loss
+ , Q.CntClm
+ ,ZWPpolicy
+ --,OneLinePol 
+	--, case when SumWritPrem1 = WPmax then 1 else 0 end as WPmax01
+into GoverningCCD_LossPremium_1_to_1
+from  CCD_Pt2_testdelete_withGovCCD   as Q 
+--left join   maxWPtable2  as M     on M.maxCCD_pol_num  = Q.policy_number and  M.sumWPgov  = Q.sumwritprem1
+;
+--select * from CCD_Pt2_testdelete_withGovCCD; --159487 rows
+--select * from GoverningCCD_LossPremium_1_to_1;-- 159487 rows
+--select sum(premium) from GoverningCCD_LossPremium_1_to_1; --  367568765.25
+--select sum(Loss) from GoverningCCD_LossPremium_1_to_1; --  97030878.42000   ***should be 112607694.56000 ****
+
+--xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+
+--***************** above gets 1 to 1 policy and Governing ClassCode ********************************
+---------------------------------------------------------------------------
+---------------------------------------------------------------------------
+--****************** below does the same for ZIPS **********************************
+
+--------------------------*****CLAIMS TABLE*****------------------------------
+--get claim zips
+
+drop table if exists ZIPtestdelete1_ClaimZIPs;
+select 
+Claim_Number,
+ Policy_Number
+, Class_Code_description
+, Risk_Zip
+, sum(Expense_Reserve + Loss_Reserve + Expense_Paid + Loss_Paid) as Loss
+into ZIPtestdelete1_ClaimZIPs
+from MOL_ClaimswithCCD
+group by Claim_Number , Policy_Number, Class_Code_description, Risk_Zip 
+;
+/*
+select * from  MOL_ClaimswithCCD; -- 6163 rows
+select * from  MOL_Binding_GL_Claim_Data; -- 6163 rows 
+select * from   ZIPtestdelete1_ClaimZIPs; -- 5619 rows when grouped by claim_number   -- after removing group by claim_number then 4488
+select count (distinct policy_number) from  MOL_Binding_GL_Claim_Data; -- 4278 rows
+select count (distinct policy_number) from   ZIPtestdelete1_ClaimZIPs; -- 4278 rows
+*/
+----------------------------------------------------------------------------------------
+
+--gets max loss
+drop table if exists ZIPtestdelete2_MaxLoss;
+select 
+ Policy_Number
+, Max (Loss) as maxLoss
+into ZIPtestdelete2_MaxLoss
+from ZIPtestdelete1_ClaimZIPs
+group by Policy_Number
+;
+--select * from ZIPtestdelete2_MaxLoss;  -- 4278 rows
+----------------------------------------------------------------------------------------
+--makes column to identify max loss/ governing ZIP in Claims
+
+drop table if exists ZIPtestdelete3_MaxLoss01;
+
+select ZIPtestdelete1_ClaimZIPs.*
+	, case when ZIPtestdelete2_MaxLoss .maxLoss = ZIPtestdelete1_ClaimZIPs.Loss then 1 else 0 end as LossMax01
+into ZIPtestdelete3_MaxLoss01
+from ZIPtestdelete2_MaxLoss 
+left join ZIPtestdelete1_ClaimZIPs on ZIPtestdelete1_ClaimZIPs.policy_number  = ZIPtestdelete2_MaxLoss.policy_number
+;      -- 4488 rows
+
+--select * from ZIPtestdelete2_MaxLoss ;  --4278 rows
+--select * from ZIPtestdelete1_ClaimZIPs ;  -- 4488 rows 
+
+----------------------------------------------------------------------------------------
+
+--filters out if not Governing ZIP from Claims
+drop table if exists ZIPtestdelete4_MaxLoss01filtered;
+
+select 
+Policy_number
+, Risk_Zip
+, Loss 
+into  ZIPtestdelete4_MaxLoss01filtered
+from ZIPtestdelete3_MaxLoss01
+where Lossmax01 =1
+;
+
+--select * from ZIPtestdelete4_MaxLoss01filtered;  -- 4545 rows
+
+
+
+--------------------------*****POLICY TABLE*****------------------------------
+-------------------------do same with policy table-----------------------------------------
+-- group  MOL_Binding_GL_Policy_Data on governing ZIP
+drop table if exists  TestDeleteMaxZIPall ;
+
+select 
+	policy_number
+	, max (written_premium) as WPmax
+into TestDeleteMaxZIPall 
+from MOL_Binding_GL_Policy_Data
+group by policy_number
+;
+
+--select * from  TestDeleteMaxZIPall; -- 156478 rows
+
+
+
+
+--Make GovZIP marker column
+drop table if exists TestDeleteMaxZIP_01   ;
+select P.policy_number,  P.insured_object_zip as ZIP
+	, Z.WPmax
+	, case when Z.WPmax = P.written_premium then 1 else 0 end as GovZIP
+into TestDeleteMaxZIP_01   
+from MOL_Binding_GL_Policy_Data as P
+left join TestDeleteMaxZIPall as Z    on Z.policy_number    = P.policy_number;
+--select * from TestDeleteMaxZIP_01   ;   -- 353024 rows
+
+--filter out non GovZip rows
+drop table if exists GoverningZIP_LossPremium_1_to_1   ;
+select P.*
+into GoverningZIP_LossPremium_1_to_1  
+from TestDeleteMaxZIP_01 as P 
+where GovZIP = 1
+
+--select * from  GoverningZIP_LossPremium_1_to_1  ;    -- 156487 rows
+
+
+------------------------------------------------------------------
+-- ************ join  GoverningCCD_LossPremium_1_to_1 and  GoverningZIP_LossPremium_1_to_1 ****************
+
+--select * from GoverningCCD_LossPremium_1_to_1 ;   -- 159487 rows
+--select * from GoverningZIP_LossPremium_1_to_1 ;   -- 159487 rows  CCD_Pt2_testdelete_withGovCCD 
+
+drop table if exists Governing_ZIP_CCD;
+select 
+	c.policy_number as policy_number
+	, z.policy_number as policy_number_z
+	,c.ccd
+	, c.ccd_group
+	, c.Premium
+	, c.loss
+	, z.zip
+	,c.CntClm
+	,c.ZWPpolicy
+	into Governing_ZIP_CCD
+from GoverningCCD_LossPremium_1_to_1 as C
+inner join GoverningZIP_LossPremium_1_to_1 as Z  on Z.policy_number = C.policy_number
+--group by Governing_ZIP_CCD.policy_number
+;
+--select count (distinct policy_number) from GoverningCCD_LossPremium_1_to_1 ;  --156478
+--select count (distinct policy_number) from GoverningZIP_LossPremium_1_to_1 ;  --156478
+--select * from Governing_ZIP_CCD; -- 172671 rows
+
+---------------------------------------------------------
+-- join TestDelete6_sumWP to Governing_ZIP_CCD
+
+drop table if exists  Governing_ZIP_CCD_2
+select G.* ,W.sumWp
+into Governing_ZIP_CCD_2
+from Governing_ZIP_CCD as G
+left join TestDelete6_sumWP as W on W.policy_number = G.policy_number
+;
+
+--select * from Governing_ZIP_CCD ; -- 172671 rows
+
+-----------------------------------------------------------------------------------
+-- join Tom_ZipData2E to Governing_ZIP_CCD_2
+
+
+drop table if exists  Governing_ZIP_CCD_3
+select 
+G.policy_number
+, G.ccd
+, G.ccd_group
+, Premium
+, loss
+, zip
+,W.Population_2018_2
+, W.Median_family_income_2018_2
+, W.Housing_units_2018_2
+, w.Land_area2
+, case when G.cntClm >0 then CntClm else 0 end as CntClm
+, G.ZWPpolicy
+into Governing_ZIP_CCD_3
+from Governing_ZIP_CCD_2 as G
+left join Tom_ZipData2E as W on W.ZIP_code2 = G.zip;
+
+ --SELECT COUNT(*) FROM Governing_ZIP_CCD_3; --156478
+ --SELECT * FROM Governing_ZIP_CCD_3; --156478
+---------------------------------------------------------------------------------------------------------------------
+--Remove duplicates
+With CTE AS (Select Policy_Number, CCD, ROW_NUMBER () OVER (PARTITION BY POLICY_NUMBER ORDER BY POLICY_NUMBER) AS DUPS
+ from Governing_ZIP_CCD_3)
+ DELETE FROM CTE
+ WHERE DUPS>1
+
+ --SELECT COUNT(*) FROM Governing_ZIP_CCD_3;
+ --SELECT * FROM Governing_ZIP_CCD_3;
+-- SELECT sum(loss) FROM Governing_ZIP_CCD_3; --96933923.39000  *** should be 112607694.56000
+-- SELECT sum(loss_paid + expense_paid + loss_reserve + expense_reserve) FROM MOL_Binding_GL_Claim_Data; --112607694.56000
+
+
+
+ -------------------------------------------------------------------------------------------------------------------------
+--------------------------*** Correct the Losses in Governing_ZIP_CCD_3 ***----------------------------------------
+
+-- Get good losses per Policy:
+
+drop table if exists policynumber_loss_delete;
+ SELECT 
+ policy_number
+ , sum(loss_paid + expense_paid + loss_reserve + expense_reserve) as Losses
+ into policynumber_loss_delete
+ FROM MOL_Binding_GL_Claim_Data
+ group by policy_number
+ ;
+ --SELECT sum(losses) FROM policynumber_loss_delete; --112607694.56000
+ --SELECT count(*) FROM policynumber_loss_delete; --4278
+ --SELECT * FROM policynumber_loss_delete order by Losses asc; --4278
+
+ ----------------------------------------------------------
+
+ -- Join Good Losses onto Governing_ZIP_CCD_3 
+drop table if exists Governing_ZIP_CCD_4;
+ select 
+ G.* 
+ , P.Losses as Correct_Losses
+ into Governing_ZIP_CCD_4
+ from Governing_ZIP_CCD_3 as G
+ left join policynumber_loss_delete as P on P.policy_number = G.policy_number
+
+ 
+ --SELECT sum(Correct_losses) FROM Governing_ZIP_CCD_4; --112607694.56000   ***should be 112607694.56000 ****
+ --SELECT * FROM Governing_ZIP_CCD_4 order by  Correct_Losses asc
+ --SHOW FIELDS FROM Governing_ZIP_CCD_4
+  /*
+ SELECT COLUMN_NAME, data_type
+  FROM INFORMATION_SCHEMA.COLUMNS
+ WHERE table_name = 'Governing_ZIP_CCD_4'
+ */
+ -------------------------------------------------------------------------------------------------------------------------
+--------------------------*** Add Policy_Effective_Date as Date_from  & Policy_Expiration_Date as Date_to ***----------------------------------------
+ -- 
+
+ drop table if exists policynumber_dates_delete;
+ SELECT 
+ policy_number
+ , max (Policy_Effective_Date) as Date_from
+ , max(Policy_Expiration_Date) as Date_to
+ into policynumber_dates_delete
+ FROM MOL_Binding_GL_Policy_Data
+ group by policy_number --, Policy_Effective_Date-- , Policy_Expiration_Date;
+ 
+ --select * from  policynumber_dates_delete
+ --select count(*) from  policynumber_dates_delete -- 156478 rows
+--select distinct policy_number FROM MOL_Binding_GL_Policy_Data ; -- 156478 rows
+
+ -------------------------------------------------------------------------------------------------------------------------
+
+  -- Join Date_from & Date_to onto Governing_ZIP_CCD_4 
+drop table if exists Governing_ZIP_CCD_5;
+ select 
+ G.* 
+ , P.Date_from
+ , P.Date_to
+ into Governing_ZIP_CCD_5
+ from Governing_ZIP_CCD_4 as G
+ left join policynumber_dates_delete as P on P.policy_number = G.policy_number
+
+ --SELECT sum(Correct_losses) FROM Governing_ZIP_CCD_5; --112607694.56000   ***should be 112607694.56000 ****
+ 
+
+ -------------------------------------------------------------------------------------------------------------------------
+--------------------------*** Add  Line_of_Business_Description_Text from Policy Table ***----------------------------------------
+ -- 
+ --select * from MOL_Binding_GL_Policy_Data;
+
+  ---------------------------------
+
+
+ drop table if exists PolNumMaxWP_delete
+ select 
+	policy_number
+	, max (written_premium) as WPmax
+into PolNumMaxWP_delete
+from MOL_Binding_GL_Policy_Data
+group by policy_number;
+
+ ---------------------------------
+ /* -- not needed - replaced by below....
+ drop table if exists  PolicyTableExtraFields_Delete ;
+ select G.*
+ into PolicyTableExtraFields_Delete 
+ from PolNumMaxWP_delete as P
+ left join MOL_Binding_GL_Policy_Data as G  on P.policy_number = G.policy_number and P.WPmax = G.Written_premium
+ */
+ 
+ ---------------------------------
+ ------------------*********this adds .001% to total number of rows ************----------------------
+ drop table if exists  PolicyTableExtraFields2_Delete ;
+ select 
+ G.policy_number
+ , Insured_object_description_Text
+ , Product_line2_code
+ , Rating_Basis_Description
+ , Region_Name
+ into PolicyTableExtraFields2_Delete 
+ from PolNumMaxWP_delete as P 
+ left join MOL_Binding_GL_Policy_Data as G  on P.policy_number = G.policy_number and P.WPmax = G.Written_premium
+  -- select count(*) from PolicyTableExtraFields2_Delete  ;-- 159487 rows *** should be 156478 rows***
+  -- select count(*) from  PolNumMaxWP_delete  ;-- OK  is 156478 rows not 159487 rows
+
+------------------- this removes 13 duplicate rows from PolicyTableExtraFields2_Delete 
+   drop table if exists  PolicyTableExtraFields3_Delete ;
+   select 
+ policy_number
+ , max(Insured_object_description_Text) as Insured_object_description_Text
+ ,  max(Product_line2_code) as Product_line2_code
+,  max(Rating_Basis_Description) as Rating_Basis_Description
+,  max(Region_Name) as Region_Name
+ into PolicyTableExtraFields3_Delete 
+ from  PolicyTableExtraFields2_Delete 
+ group by policy_number
+ 
+  -- select count(*) from PolicyTableExtraFields3_Delete   ;-- 156478 rows***
+
+  -------------------------------------------------------------------------------------------------------------------------
+
+-- Join  Insured_object_description_Text, Product_line2_code, Rating_Basis_Description, Region_Name onto Governing_ZIP_CCD_4 
+
+drop table if exists Governing_ZIP_CCD_6;
+ select 
+ G.* 
+ , P.Insured_object_description_Text
+, P.Product_line2_code
+, P.Rating_Basis_Description
+, P.Region_Name
+ into Governing_ZIP_CCD_6
+ from Governing_ZIP_CCD_5 as G
+ left join PolicyTableExtraFields3_Delete  as P on P.policy_number = G.policy_number
+ --group by P.Insured_object_description_Text
+ ;
+ --select count(*) from  PolicyTableExtraFields2_Delete ;-- 159487 rows
+ --select count(*) from  Governing_ZIP_CCD_6 ;-- 159487 rows
+ -- select count(*) from  Governing_ZIP_CCD_5 ;-- 156478 rows
+ 
+ --select * from  Governing_ZIP_CCD_6 ;
+ --SELECT sum(Correct_losses) FROM Governing_ZIP_CCD_6; --112607694.56000   ***should be 112607694.56000 ****
+ 
+
+ -------------------------------------------------------------------------------------------------------------------------
+--------------------------*** Add Type_of_Loss, from Claim: Table ***----------------------------------------
+
+
+drop table if exists  TypeLoss_Delete
+select 
+Policy_number
+, Max(Type_of_Loss) as TypeLoss
+, max((loss_paid + expense_paid + loss_reserve + expense_reserve) ) as lossesX
+into TypeLoss_Delete
+from MOL_Binding_GL_Claim_Data
+group by Policy_number
+
+--select sum(lossesX) from  TypeLoss_Delete ; --102650339.69000
+--select sum(loss_paid + expense_paid + loss_reserve + expense_reserve)  from MOL_Binding_GL_Claim_Data ; --102650339.69000
+
+  -------------------------------------------------------------------------------------------------------------------------
+
+-- Join  Insured_object_description_Text, Product_line2_code, Rating_Basis_Description, Region_Name onto Governing_ZIP_CCD_4
+-- clear Nulls from Correct_Losses 
+
+drop table if exists Governing_ZIP_CCD_7;
+ select 
+ G.*  
+, case when G.Correct_Losses > 0 then G.Correct_Losses else  0 end  as LossNoNull
+ , P.TypeLoss
+ into Governing_ZIP_CCD_7
+ from Governing_ZIP_CCD_6 as G
+ left join TypeLoss_Delete  as P on P.policy_number = G.policy_number
+ 
+ --select * from  Governing_ZIP_CCD_6; 
+ --select * from  Governing_ZIP_CCD_7;
+ --select * from  Governing_ZIP_CCD_8;
+-- select sum(correct_losses) from  Governing_ZIP_CCD_7; -- 112607694.56000 ****
+-- select sum(LossNoNull) from  Governing_ZIP_CCD_7; --  112607694.56000
+-- select sum(Premium) from  Governing_ZIP_CCD_7;
+
+
+
+
+
+ -------------------------------------------------------------------------------------------------------------------------
+--------------------------*** Tidy up the table ***----------------------------------------
+drop table if exists  Governing_ZIP_CCD_8;
+ select
+ policy_number
+ , Premium
+ , LossNoNull as Loss
+ , case when LossNoNull > 50000 then 50000 else  LossNoNull end as LosCpd50k
+ , case when LossNoNull > 100000 then 100000 else  LossNoNull end as LosCpd100k
+ , case when LossNoNull > 200000 then 200000 else  LossNoNull end as LosCpd200k
+ , ccd
+ , ccd_group
+ , zip
+ , Land_area2 As Area
+ , Median_family_income_2018_2 as Income
+ , Population_2018_2 as 'Population'
+ , Housing_units_2018_2 as Housing
+ , Date_from
+ , Date_to
+ , Insured_object_description_Text
+ , Product_line2_code
+ , Rating_Basis_Description
+ , Region_Name
+ , TypeLoss
+ , CntClm
+ , case when ZWPpolicy =1 then 1 else 0 end as  ZWPpolicy
+ --, case when Premium > 0 then 1 else 0 end as CntPol
+ into Governing_ZIP_CCD_8
+ from  Governing_ZIP_CCD_7;
+ ---------------------------------------------
+ --delete zero and -ve premiums from Gov8
+DELETE FROM  Governing_ZIP_CCD_8
+WHERE Premium <= 0
+;
+--------------------------------------------
+ 
+ --select sum(CntPol) from Governing_ZIP_CCD_8
+ --select * from Governing_ZIP_CCD_8
+ 
+-----------------***********Add count of rows for each Policy  PolCnt*********
+-----------------***********Add count of ZIPS for each Policy  CntZIP*********
+-----------------***********Add count of CCDs for each Policy  CntCCD*********
+---------------********And remove Policies which have zero or -ve Premiums-----------------------
+
+drop table if exists TestDeletePolCnt
+
+select 
+policy_number, 
+count(policy_number) as PolCnt,
+count(Insured_object_zip) as CntZIP,
+count(Class_Code) as CntCCD
+into TestDeletePolCnt
+from MOL_Binding_GL_Policy_Data
+group by policy_number
+
+-----------------------------------------------
+
+drop table if exists Governing_ZIP_CCD_9;
+ select 
+ G.*  
+ , P.PolCnt as CntPolRows
+ , P.CntZIP
+ , P.CntCCD
+ into Governing_ZIP_CCD_9
+ from Governing_ZIP_CCD_8 as G
+ left join TestDeletePolCnt  as P on P.policy_number = G.policy_number
+ 
+ --select * from TestDeletePolCnt
+ --select * from Governing_ZIP_CCD_8
+-----------------------------------------------
+
+DELETE FROM  Governing_ZIP_CCD_9
+WHERE Premium <= 0
+
+/*
+select * from  Governing_ZIP_CCD_9
+select * from  Governing_ZIP_CCD_8
+select * from  Governing_ZIP_CCD_7
+select * from  Governing_ZIP_CCD_6
+*/
+
+----------------------------------------------------------------------------------------
+
+drop table if exists  Governing_ZIP_CCD_10;
+ select
+ policy_number
+ , Premium
+ ,  Loss
+ , LosCpd50k
+ ,  LosCpd100k
+ , LosCpd200k
+ , ccd
+ , ccd_group
+ --, zip
+ , Area
+ , Income
+ --, Population_2018_2 as 'Population'
+ --, Housing_units_2018_2 as Housing
+ --, Date_from
+ --, Date_to
+ --, Insured_object_description_Text
+ --, Product_line2_code
+ --, Rating_Basis_Description
+-- , Region_Name
+ , TypeLoss
+ , CntClm
+ , ZWPpolicy
+ , CntZIP
+ , CntCCD
+ --, case when Premium > 0 then 1 else 0 end as CntPol
+ into Governing_ZIP_CCD_10
+ from  Governing_ZIP_CCD_9;
+
+
+
+
+
+
+ ---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+--Adds 1Line column
+
+--  makes a Table of of policy numbers which have at least one row with a zero premium
+drop table if exists  TestDeletepolicies_OneLine;
+
+select 
+	distinct policy_number as policy_numberOneLine,
+	case when count(policy_number)=1 then 1 else 0 end as  OneLinePol,
+	count(policy_number) as CntLinePol
+into TestDeletepolicies_OneLine
+from  MOL_Binding_GL_Policy_Data
+group by policy_number
+having sum(written_premium) > 0
+
+--select * from  Governing_ZIP_CCD_10
+--select * from TestDeletepolicies_Oneline
+
+
+/*    ******************************* GET COLUMN NAMES *******************************
+SELECT COLUMN_NAME
+  FROM INFORMATION_SCHEMA.COLUMNS
+ WHERE table_name = 'Governing_ZIP_CCD_11';
+ */
+;
+;
+	
+	
+--------------------------------------------------------------------------------	
+--  Joins TestDeletepolicies_zwp to  CCD_Pt2_testdelete ...
+
+drop table if exists  Governing_ZIP_CCD_11
+select 
+	J.*,
+	P.OneLinePol,
+	P.CntLinePol
+	into Governing_ZIP_CCD_11
+from  Governing_ZIP_CCD_10 as J
+left join TestDeletepolicies_OneLine as P on P.policy_numberOneLine = J.Policy_number;
+
+select * from  Governing_ZIP_CCD_11-- order by cntclm desc
+
+----------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+----------------***end***------------------------------
+
+
+
+--select * from TestDeletepolicies_OneLine
+--select * from CCD_Pt2_testdeleteA
+--select * from JoinedPolicyandClaimsandZWP
+--select * from  Governing_ZIP_CCD_11 order by cntclm desc
+
+
+
+
+
+-- select sum(Loss) from  Governing_ZIP_CCD_8; --  112607694.56000
+-- select sum(Premium) from  Governing_ZIP_CCD_8; -- 363797776.25000
+--select count (distinct ccd_group) from Governing_ZIP_CCD_8
+ -- select * from Governing_ZIP_CCD_8;
+ /*
+ SELECT COLUMN_NAME, data_type
+  FROM INFORMATION_SCHEMA.COLUMNS
+ WHERE table_name = 'Governing_ZIP_CCD_7'
+
+
+ select 
+ count(insured_object_zip),
+ count(class_code)
+from  MOL_Binding_GL_Policy_Data
+
+
+ select * 
+from  MOL_Binding_GL_Policy_Data
+
+
+
+ */
+
+
