@@ -1,0 +1,143 @@
+
+
+
+-------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------
+/* 
+From MOL_Binding_GL_Claim_Data Cleans the 68 claims that have more than one CCD. It changes the multiple CCDs to the one that seems most appropriate for the details of the claim.
+Aggregates on Policy Number and CCD.
+Makes table called TOM_Claims_Agg2 which is used in '1G one line zip and CCD 2021-10-11'
+*/
+
+drop table if exists TOM_Claims_Agg_prep_delete;
+
+select case
+when	claim_number = 	'C041106'	then	'Furniture Stores (For-Profit)'
+when	claim_number = 	'C041302'	then	'Gasoline Stations - self-service'
+when	claim_number = 	'C041588'	then	'Pet Stores'
+when	claim_number = 	'C042039'	then	'Buildings or Premises - bank or office - mercantile or manufacturing (Lessors risk only) (For-Profit)'
+when	claim_number = 	'C042727'	then	'Rifle or Pistol Ranges - Not Otherwise Classified'
+when	claim_number = 	'C043017'	then	'Gasoline Stations - self-service'
+when	claim_number = 	'C044621'	then	'Nursery - garden'
+when	claim_number = 	'C044743'	then	'Apartment Buildings'
+when	claim_number = 	'C044801'	then	'Security and Patrol Agencies'
+when	claim_number = 	'C044918'	then	'Painting - exterior - buildings or structures - three stories or less in height - Not Otherwise Classified'
+when	claim_number = 	'C044976'	then	'Roofing - residential - three stories and under'
+when	claim_number = 	'C045552'	then	'Parking - public - shopping centers - maintained by the insured - (lessors risk only)'
+when	claim_number = 	'C046810'	then	'Restaurants - with sale of alcoholic beverages that are 75% or more of the total annual receipts of the restaurants - with tables and dance floor - no table service'
+when	claim_number = 	'C046814'	then	'Caterers'
+when	claim_number = 	'C047123'	then	'Townhouse Associations (association risk only)'
+when	claim_number = 	'C047132'	then	'Security and Patrol Agencies'
+when	claim_number = 	'C047239'	then	'Clubs - civic, service or social - having buildings or premises owned or leased (For-Profit)'
+when	claim_number = 	'C047337'	then	'Parking - private'
+when	claim_number = 	'C047409'	then	'Medical Offices'
+when	claim_number = 	'C048276'	then	'Restaurants - operated by concessionaires - Other than Not-For-Profit'
+when	claim_number = 	'C048596'	then	'Floor Covering Installation - not ceramic tile or stone'
+when	claim_number = 	'C048924'	then	'Apartment Buildings'
+when	claim_number = 	'C049110'	then	'Floor Covering Installation - not ceramic tile or stone'
+when	claim_number = 	'C049335'	then	'Tree Pruning, Dusting, Spraying, Repairing, Trimming Or Fumigating'
+when	claim_number = 	'C049441'	then	'Restaurants, Taverns, Hotels, Motels, including package sales'
+when	claim_number = 	'C049719'	then	'Schools - colleges, universities, junior colleges or college preparatory (For-Profit)'
+when	claim_number = 	'C049883'	then	'Grocery Stores (excluding Supermarkets with receipts in excess of $500,000 and area in excess of 3,000 sq. feet)'
+when	claim_number = 	'C050047'	then	'Parking - public - shopping centers - maintained by the insured - (lessors risk only)'
+when	claim_number = 	'C050814'	then	'Conduit Construction for Cables or Wires'
+when	claim_number = 	'C050814'	then	'Conduit Construction for Cables or Wires'
+when	claim_number = 	'C050814'	then	'Conduit Construction for Cables or Wires'
+when	claim_number = 	'C050814'	then	'Conduit Construction for Cables or Wires'
+when	claim_number = 	'C051426'	then	'Stores - Not Otherwise Classified - food or drink (For-Profit)'
+when	claim_number = 	'C051875'	then	'Condominiums - residential - (association risk only)'
+when	claim_number = 	'C052342'	then	'Landscape Gardening'
+when	claim_number = 	'C052382'	then	'Cleaning - outside surfaces of buildings and other exterior surfaces'
+when	claim_number = 	'C052427'	then	'Schools - trade or vocational'
+when	claim_number = 	'C052434'	then	'Dwellings - one-family (lessors risk only)'
+when	claim_number = 	'C052769'	then	'Gasoline Stations - self-service'
+when	claim_number = 	'C052980'	then	'Swimming Pools - Not Otherwise Classified'
+when	claim_number = 	'C053032'	then	'Gasoline Stations - self-service'
+when	claim_number = 	'C053082'	then	'Vacant Land - Other than Not-For-Profit'
+when	claim_number = 	'C053153'	then	'Tile, Stone, Marble, Mosaic Or Terrazzo Work - interior construction'
+when	claim_number = 	'C053199'	then	'Vacant Buildings - not factories (For-Profit)'
+when	claim_number = 	'C054103'	then	'Buildings or Premises - bank or office - mercantile or manufacturing - maintained by the insured (Lessors risk only) (For-Profit)'
+when	claim_number = 	'C054209'	then	'Chimney Cleaning'
+when	claim_number = 	'C054659'	then	'Dwellings - two-family (lessors risk only)'
+when	claim_number = 	'C054749'	then	'Dwellings - one-family (lessors risk only)'
+when	claim_number = 	'C054924'	then	'Zoos (For-Profit)'
+when	claim_number = 	'C055049'	then	'Metal Erection - frame structures - iron work on outside of buildings'
+when	claim_number = 	'C055233'	then	'Shopping Centers - excluding indoor malls - buildings or premises not occupied by the insured (lessors risk only)'
+when	claim_number = 	'C055384'	then	'Roofing - commercial or residential over three stories'
+when	claim_number = 	'C055386'	then	'Vending Machine Operations - confection, food, beverage or ice'
+when	claim_number = 	'C056348'	then	'Plumbing - residential or domestic'
+when	claim_number = 	'C056956'	then	'Contractors - subcontracted work - in connection with construction, reconstruction, repair or erection of buildings - Not Otherwise Classified'
+when	claim_number = 	'C056959'	then	'Exhibitions - outside - no stadiums or grandstands'
+when	claim_number = 	'C057209'	then	'Freight Forwarders or Handlers - Not Otherwise Classified'
+when	claim_number = 	'C057327'	then	'Shopping Centers - excluding indoor malls - buildings or premises not occupied by the insured (lessors risk only)'
+when	claim_number = 	'C057689'	then	'Contractors - subcontracted work - in connection with building construction, reconstruction, repair or erection - one or two family dwellings'
+when	claim_number = 	'C057700'	then	'Dwellings - one-family (lessors risk only)'
+when	claim_number = 	'C057718'	then	'Buildings or Premises - office - Not Otherwise Classified (For-Profit)'
+when	claim_number = 	'C057730'	then	'Contractors - subcontracted work - in connection with construction, reconstruction, erection or repair - not buildings - Not Otherwise Classified'
+when	claim_number = 	'C058071'	then	'Roofing - commercial or residential over three stories'
+when	claim_number = 	'C058071'	then	'Roofing - commercial or residential over three stories'
+when	claim_number = 	'C058126'	then	'Landscape Gardening'
+when	claim_number = 	'C058283'	then	'Stores - Not Otherwise Classified - food or drink (For-Profit)'
+when	claim_number = 	'C058359'	then	'Exhibitions - in buildings - Not Otherwise Classified (For-Profit)'
+when	claim_number = 	'C058453'	then	'Stores - Not Otherwise Classified - food or drink (For-Profit)'
+when	claim_number = 	'C058463'	then	'Stores - Not Otherwise Classified - food or drink (For-Profit)'
+when	claim_number = 	'C058533'	then	'Contractors - subcontracted work - in connection with construction, reconstruction, repair or erection of buildings - Not Otherwise Classified'
+when	claim_number = 	'C058552'	then	'Laundry and Dry Cleaning Stores'
+when	claim_number = 	'C058563'	then	'Contractors - executive supervisors or executive superintendents'
+when	claim_number = 	'C058684'	then	'Contractors - subcontracted work - in connection with building construction, reconstruction, repair or erection - apartment or office buildings over four stories'
+when	claim_number = 	'C058773'	then	'Stores - Not Otherwise Classified - food or drink (For-Profit)'
+when	claim_number = 	'C058850'	then	'Sewer Mains or Connections Construction'
+when	claim_number = 	'C059168'	then	'Vacant Buildings - not factories (For-Profit)'
+when	claim_number = 	'C059236'	then	'Swimming Pools - Not Otherwise Classified'
+when	claim_number = 	'C059322'	then	'Clubs - civic, service or social - no buildings or premises owned or leased except for office purposes - Not-For-Profit only'
+when	claim_number = 	'C060314'	then	'Halls (For-Profit)'
+when	claim_number = 	'C060394'	then	'Amusement Centers'
+when	claim_number = 	'C060477'	then	'Real Estate Property Managed'
+when	claim_number = 	'C060625'	then	'Buildings or Premises - bank or office - mercantile or manufacturing - maintained by the insured (Lessors risk only) (For-Profit)'
+when	claim_number = 	'C060863'	then	'Laundry and Dry Cleaning Stores'
+when	claim_number = 	'C062068'	then	'Buildings or Premises - bank or office - mercantile or manufacturing - maintained by the insured (Lessors risk only) (For-Profit)'
+when	claim_number = 	'C062416'	then	'Contractors - executive supervisors or executive superintendents'
+when	claim_number = 	'C062624'	then	'Halls (For-Profit)'
+when	claim_number = 	'C067061'	then	'Contractors - subcontracted work - in connection with building construction, reconstruction, repair or erection - one or two family dwellings'
+when	claim_number = 	'C068449'	then	'Bicycles - rented to others'
+	else  replace(class_code_description, '''', '') end as ccd
+
+		,Expense_Paid + Expense_Reserve + Loss_Reserve + Loss_Paid as losses
+		, case when (loss_paid + expense_paid + loss_reserve + expense_reserve) > 180000 
+			then 180000 else (loss_paid + expense_paid + loss_reserve + expense_reserve) end as lssCppd180
+		, case when (loss_paid + expense_paid + loss_reserve + expense_reserve) > 500000 
+			then 500000 else (loss_paid + expense_paid + loss_reserve + expense_reserve) end as lssCppd500
+		,claim_number 
+		,policy_number
+into TOM_Claims_Agg_prep_delete
+from MOL_Binding_GL_Claim_Data
+;
+select sum(losses) from TOM_Claims_Agg_prep_delete ; --112607694.56000   **GOOD**
+SELECT sum(loss_paid + expense_paid + loss_reserve + expense_reserve) FROM MOL_Binding_GL_Claim_Data; --112607694.56000
+
+-------------------------------------------------------------------------------------
+-- takes TOM_Claims_Agg_prep_delete  and removes claim_munber and makes a CntClaim column
+
+drop table if exists TOM_Claims_Agg2;
+
+select 
+	policy_number
+	, ccd
+	, sum(losses) as losses
+	,sum(lssCppd180) as lssCppd180
+	,sum(lssCppd500) as lssCppd500
+	, count(distinct claim_number) as CntClaim
+into TOM_Claims_Agg2
+from TOM_Claims_Agg_prep_delete
+group by policy_number, ccd
+;
+
+--select sum(losses) from TOM_Claims_Agg2 ; --112607694.56000   **GOOD**
+--select * from TOM_Claims_Agg_prep_delete ;
+--select * from TOM_Claims_Agg2;
+
+
+--select * from Governing_ZIP_CCD_8
+
+
+-----------------------------------------------------------------------------------------
